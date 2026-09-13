@@ -1,0 +1,6 @@
+{
+  "database": ["payment"],
+  "payment": ["checkout", "order"],
+  "checkout": ["order"],
+  "order": []
+}

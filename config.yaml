@@ -1,0 +1,44 @@
+correlation:
+  window_minutes: 5
+  strong_edge_threshold: 0.70
+
+  weights:
+    temporal: 0.25
+    service: 0.25
+    component: 0.15
+    topology: 0.20
+    evidence_similarity: 0.15
+
+severity:
+  blast: 0.35
+  criticality: 0.35
+  trend: 0.20
+  magnitude: 0.10
+
+  service_criticality:
+    checkout: 95
+    payment: 92
+    order: 88
+    database: 90
+    internal_admin: 20
+    unknown: 50
+
+confidence:
+  density: 0.35
+  agreement: 0.25
+  topology: 0.20
+  temporal: 0.20
+
+detection:
+  zscore_threshold: 3.0
+  window_size: 20
+  ewma_alpha: 0.3
+
+validation:
+  coherence_avg_threshold: 0.60
+  coherence_strong_ratio: 0.50
+  bridge_strong_threshold: 0.70
+
+fingerprint:
+  continuation_window_minutes: 60
+  similarity_threshold: 0.70

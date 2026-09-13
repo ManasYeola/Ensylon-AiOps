@@ -1,0 +1,6 @@
+{
+  "Type": "Notification",
+  "MessageId": "cw-test-001",
+  "Subject": "ALARM: DBConnectionPool",
+  "Message": "{\"AlarmName\":\"DBConnectionPool-High\",\"AlarmArn\":\"arn:aws:cloudwatch:us-east-1:123456789:alarm:DBConnectionPool-High\",\"AlarmDescription\":\"Connection pool above 90%\",\"NewStateValue\":\"ALARM\",\"NewStateReason\":\"Threshold crossed\",\"StateChangeTime\":\"2026-09-13T09:01:00.000Z\",\"Trigger\":{\"Namespace\":\"AWS/RDS\",\"MetricName\":\"DatabaseConnections\",\"Threshold\":90,\"ComparisonOperator\":\"GreaterThanThreshold\"}}"
+}

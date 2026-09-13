@@ -1,0 +1,37 @@
+{
+  "receiver": "ensylon-aiops",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "HighLatency",
+        "service": "checkout",
+        "instance": "checkout-api-1",
+        "environment": "prod",
+        "component": "api"
+      },
+      "annotations": {
+        "summary": "Checkout API latency above 800ms",
+        "value": "850"
+      },
+      "startsAt": "2026-09-13T09:03:30Z",
+      "fingerprint": "grafana-test-001"
+    },
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "PaymentTimeout",
+        "service": "order",
+        "instance": "order-api-1",
+        "environment": "prod",
+        "component": "api"
+      },
+      "annotations": {
+        "summary": "Payment request timeout in order service"
+      },
+      "startsAt": "2026-09-13T09:04:00Z",
+      "fingerprint": "grafana-test-002"
+    }
+  ]
+}

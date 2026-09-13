@@ -1,0 +1,195 @@
+[
+  {
+    "id": "S1",
+    "timestamp": "2026-09-12T10:01:00",
+    "source": "cloudwatch",
+    "environment": "prod",
+    "service": "database",
+    "component": "connection_pool",
+    "type": "metric_anomaly",
+    "value": 98
+  },
+  {
+    "id": "S2",
+    "timestamp": "2026-09-12T10:01:20",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "payment",
+    "component": "api",
+    "type": "log_anomaly",
+    "template_id": "T001",
+    "message": "Database connection timeout"
+  },
+  {
+    "id": "S3",
+    "timestamp": "2026-09-12T10:01:30",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "payment",
+    "component": "api",
+    "type": "log_anomaly",
+    "template_id": "T001",
+    "message": "Database connection timeout"
+  },
+  {
+    "id": "S4",
+    "timestamp": "2026-09-12T10:01:40",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "payment",
+    "component": "api",
+    "type": "log_anomaly",
+    "template_id": "T001",
+    "message": "Database connection timeout"
+  },
+  {
+    "id": "S5",
+    "timestamp": "2026-09-12T10:01:50",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "payment",
+    "component": "api",
+    "type": "log_anomaly",
+    "template_id": "T001",
+    "message": "Database connection timeout"
+  },
+  {
+    "id": "S6",
+    "timestamp": "2026-09-12T10:02:00",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "payment",
+    "component": "api",
+    "type": "log_anomaly",
+    "template_id": "T001",
+    "message": "Database connection timeout"
+  },
+  {
+    "id": "S7",
+    "timestamp": "2026-09-12T10:02:10",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "payment",
+    "component": "api",
+    "type": "log_anomaly",
+    "template_id": "T001",
+    "message": "Database connection timeout"
+  },
+  {
+    "id": "S8",
+    "timestamp": "2026-09-12T10:02:20",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "payment",
+    "component": "api",
+    "type": "log_anomaly",
+    "template_id": "T001",
+    "message": "Database connection timeout"
+  },
+  {
+    "id": "S9",
+    "timestamp": "2026-09-12T10:02:30",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "payment",
+    "component": "api",
+    "type": "log_anomaly",
+    "template_id": "T001",
+    "message": "Database connection timeout"
+  },
+  {
+    "id": "S10",
+    "timestamp": "2026-09-12T10:02:40",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "payment",
+    "component": "api",
+    "type": "log_anomaly",
+    "template_id": "T001",
+    "message": "Database connection timeout"
+  },
+  {
+    "id": "S11",
+    "timestamp": "2026-09-12T10:02:50",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "payment",
+    "component": "api",
+    "type": "log_anomaly",
+    "template_id": "T001",
+    "message": "Database connection timeout"
+  },
+  {
+    "id": "S12",
+    "timestamp": "2026-09-12T10:03:00",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "payment",
+    "component": "api",
+    "type": "log_anomaly",
+    "template_id": "T001",
+    "message": "Database connection timeout"
+  },
+  {
+    "id": "S13",
+    "timestamp": "2026-09-12T10:03:10",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "payment",
+    "component": "api",
+    "type": "log_anomaly",
+    "template_id": "T001",
+    "message": "Database connection timeout"
+  },
+  {
+    "id": "S14",
+    "timestamp": "2026-09-12T10:03:30",
+    "source": "grafana",
+    "environment": "prod",
+    "service": "checkout",
+    "component": "api",
+    "type": "latency_alert",
+    "value": 850
+  },
+  {
+    "id": "S15",
+    "timestamp": "2026-09-12T10:04:00",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "order",
+    "component": "api",
+    "type": "timeout_anomaly",
+    "message": "Payment request timeout"
+  },
+  {
+    "id": "S16",
+    "timestamp": "2026-09-12T10:04:10",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "order",
+    "component": "api",
+    "type": "timeout_anomaly",
+    "message": "Payment request timeout"
+  },
+  {
+    "id": "S17",
+    "timestamp": "2026-09-12T10:04:20",
+    "source": "application_log",
+    "environment": "prod",
+    "service": "order",
+    "component": "api",
+    "type": "timeout_anomaly",
+    "message": "Payment request timeout"
+  },
+  {
+    "id": "S18",
+    "timestamp": "2026-09-12T10:03:45",
+    "source": "cloudwatch",
+    "environment": "prod",
+    "service": "recommendation",
+    "component": "cpu",
+    "type": "metric_anomaly",
+    "value": 95,
+    "message": "CPU utilization spike on recommendation service"
+  }
+]
