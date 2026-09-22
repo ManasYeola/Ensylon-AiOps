@@ -124,6 +124,21 @@ def ingest_signal(signal: Signal) -> dict:
     return {"status": "accepted", "signal_id": signal.id}
 
 
+@app.get("/api/signals")
+def list_signals() -> list[dict]:
+    """List all ingested signals."""
+    return [s.model_dump() for s in _signals.values()]
+
+
+@app.get("/api/signals/{signal_id}")
+def get_signal(signal_id: str) -> dict:
+    """Fetch a specific ingested signal by ID."""
+    s = _signals.get(signal_id)
+    if not s:
+        raise HTTPException(status_code=404, detail="Signal not found")
+    return s.model_dump()
+
+
 @app.post("/api/signals/batch", status_code=status.HTTP_201_CREATED)
 def ingest_batch(signals: list[Signal]) -> dict:
     """
@@ -179,9 +194,19 @@ def get_evidence_graph(incident_id: str) -> dict:
         raise HTTPException(status_code=404, detail="Graph not found")
 
     edges = graph.edges_within_cluster(inc.signal_ids)
+    nodes_data = []
+    for sid in inc.signal_ids:
+        if sid in _signals:
+            nodes_data.append(_signals[sid].model_dump())
+        elif sid in graph.signals:
+            nodes_data.append(graph.signals[sid].model_dump())
+        else:
+            nodes_data.append({"id": sid})
+
     return {
         "incident_id": incident_id,
         "nodes": inc.signal_ids,
+        "nodes_data": nodes_data,
         "edges": [e.model_dump() for e in edges],
     }
 
@@ -271,6 +296,12 @@ def publish_jira(incident_id: str) -> dict:
         return ticket
     except JiraError as e:
         raise HTTPException(status_code=403, detail=str(e))
+
+
+@app.get("/api/jira/tickets")
+def list_jira_tickets() -> list[dict]:
+    """List all published tickets in Mock Jira."""
+    return get_mock_tickets()
 
 
 # ---------------------------------------------------------------------------
@@ -419,3 +450,13 @@ async def test_webhook(payload: dict) -> dict:
         "new_incidents": len(incidents),
         "incidents": incidents,
     }
+
+
+# ---------------------------------------------------------------------------
+# Static frontend serving (if built)
+# ---------------------------------------------------------------------------
+from fastapi.staticfiles import StaticFiles
+
+_frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
+if _frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=str(_frontend_dist), html=True), name="frontend")
