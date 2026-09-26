@@ -6,9 +6,7 @@ import {
   ZoomOut,
   RotateCcw,
   Search,
-  Eye,
   ChevronRight,
-  Sparkles,
 } from 'lucide-react';
 
 // Service color scheme for distinct visual clustering matching broadsheet palette
@@ -663,98 +661,6 @@ export default function EvidenceGraph({ incident, graphData }) {
             >
               {activeEdges.length} Strong Edges
             </span>
-          </div>
-
-          {/* View Mode & Weight Label Controls */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            {/* View Mode Selector */}
-            <div
-              style={{
-                display: 'flex',
-                background: '#EAE6DB',
-                padding: '3px',
-                borderRadius: 'var(--radius-full)',
-                border: '1px solid var(--border-subtle)',
-              }}
-            >
-              <button
-                onClick={() => setViewMode('backbone')}
-                title="Maximum Spanning Tree: clean correlation backbone with zero hairball cycles"
-                style={{
-                  padding: '5px 12px',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  border: 'none',
-                  borderRadius: 'var(--radius-full)',
-                  cursor: 'pointer',
-                  background: viewMode === 'backbone' ? '#FAF8F0' : 'transparent',
-                  color: viewMode === 'backbone' ? '#252525' : '#565F6E',
-                  boxShadow: viewMode === 'backbone' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <Sparkles size={12} color="#D6A62C" />
-                Clean Backbone
-              </button>
-              <button
-                onClick={() => setViewMode('top2')}
-                title="Top 2 strongest connections per node"
-                style={{
-                  padding: '5px 12px',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  border: 'none',
-                  borderRadius: 'var(--radius-full)',
-                  cursor: 'pointer',
-                  background: viewMode === 'top2' ? '#FAF8F0' : 'transparent',
-                  color: viewMode === 'top2' ? '#252525' : '#565F6E',
-                  boxShadow: viewMode === 'top2' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                }}
-              >
-                Top-2
-              </button>
-              <button
-                onClick={() => setViewMode('all')}
-                title="Show all strong correlation edges"
-                style={{
-                  padding: '5px 12px',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  border: 'none',
-                  borderRadius: 'var(--radius-full)',
-                  cursor: 'pointer',
-                  background: viewMode === 'all' ? '#FAF8F0' : 'transparent',
-                  color: viewMode === 'all' ? '#252525' : '#565F6E',
-                  boxShadow: viewMode === 'all' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                }}
-              >
-                All Strong
-              </button>
-            </div>
-
-            {/* Weight Labels Mode Toggle */}
-            <button
-              onClick={() => setWeightMode((prev) => (prev === 'focus' ? 'all' : 'focus'))}
-              title="Toggle whether edge weight badges appear on hover/selection or across all edges"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                padding: '5px 12px',
-                fontSize: '0.72rem',
-                fontWeight: 600,
-                background: weightMode === 'all' ? 'rgba(214, 166, 44, 0.15)' : '#EAE6DB',
-                border: weightMode === 'all' ? '1px solid #D6A62C' : '1px solid var(--border-subtle)',
-                color: weightMode === 'all' ? '#785A00' : '#565F6E',
-                borderRadius: 'var(--radius-full)',
-                cursor: 'pointer',
-              }}
-            >
-              <Eye size={12} />
-              <span>{weightMode === 'focus' ? 'Weights: Focus' : 'Weights: All'}</span>
-            </button>
           </div>
         </div>
 
