@@ -81,10 +81,6 @@ export default function StatsBar({
           <span style={{ fontSize: '1.45rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
             {displaySignals}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: signalsCount > 0 ? '#785A00' : '#807663', fontWeight: 600 }}>
-            <TrendingUp size={12} />
-            <span>{signalsCount > 0 ? '+12% baseline' : '0% baseline'}</span>
-          </div>
         </div>
       </div>
 
@@ -137,9 +133,6 @@ export default function StatsBar({
               {activeIncidents > 0 ? 'Active' : 'None'}
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#565F6E' }}>
-            <span>validated incidents</span>
-          </div>
         </div>
       </div>
 
@@ -178,9 +171,6 @@ export default function StatsBar({
           <span style={{ fontSize: '1.45rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
             {displayFilteredNoise}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#565F6E' }}>
-            <span>suppressed signals</span>
-          </div>
         </div>
       </div>
 
@@ -219,10 +209,6 @@ export default function StatsBar({
           <span style={{ fontSize: '1.45rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
             {noiseReductionRatio}%
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#785A00', fontWeight: 600 }}>
-            <Zap size={12} color="#785A00" />
-            <span>suppression rate</span>
-          </div>
         </div>
       </div>
 
@@ -261,10 +247,6 @@ export default function StatsBar({
           <span style={{ fontSize: '1.45rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
             {avgConfidence}%
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: incidentCount > 0 ? '#785A00' : '#807663', fontWeight: 600 }}>
-            <CheckCircle2 size={12} color={incidentCount > 0 ? '#785A00' : '#807663'} />
-            <span>{incidentCount > 0 ? 'gate met' : 'no incidents'}</span>
-          </div>
         </div>
       </div>
 
@@ -316,9 +298,6 @@ export default function StatsBar({
             >
               Published
             </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#565F6E' }}>
-            <span>{Math.max(0, incidentCount - (jiraTicketsCount || 0))} pending approval</span>
           </div>
         </div>
       </div>

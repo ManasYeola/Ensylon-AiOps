@@ -389,14 +389,9 @@ def _run_pipeline(signals: list[Signal]) -> list[dict]:
         _fp_to_incident[fp_id] = inc_id
         _graphs[inc_id]       = graph
         results.append(incident.model_dump())
-
-        # Auto-generate draft once in the background if not already started/present
-        if inc_id not in _drafts and inc_id not in _draft_tasks:
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(_get_or_create_draft(inc_id))
-            except RuntimeError:
-                pass
+        # Draft scheduling is handled by _windowed_pipeline_run on the event loop
+        # after this function returns — do NOT call asyncio.get_running_loop() here
+        # because _run_pipeline may be called from a thread executor.
 
     return results
 
@@ -404,6 +399,38 @@ def _run_pipeline(signals: list[Signal]) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Core ingest function — shared by API endpoint AND SSE consumer
 # ---------------------------------------------------------------------------
+
+# Maximum number of signals to keep in memory.
+# Old signals are pruned to prevent the correlation pipeline from growing O(all-time).
+_MAX_SIGNAL_STORE = 2000
+
+
+def _prune_signal_store() -> None:
+    """
+    Evict the oldest signals beyond _MAX_SIGNAL_STORE to keep correlation O(window).
+    Signals that are part of an existing incident are retained.
+    """
+    if len(_signals) <= _MAX_SIGNAL_STORE:
+        return
+    # Collect signal IDs that are locked into incidents
+    incident_signal_ids: set[str] = set()
+    for inc in _incidents.values():
+        incident_signal_ids.update(inc.signal_ids)
+
+    # Sort by timestamp, oldest first; evict non-incident signals
+    sorted_ids = sorted(
+        _signals.keys(),
+        key=lambda sid: _signals[sid].timestamp,
+    )
+    evict_count = len(_signals) - _MAX_SIGNAL_STORE
+    evicted = 0
+    for sid in sorted_ids:
+        if evicted >= evict_count:
+            break
+        if sid not in incident_signal_ids:
+            del _signals[sid]
+            evicted += 1
+
 
 async def _ingest_signal(signal: Signal) -> dict:
     """
@@ -414,6 +441,11 @@ async def _ingest_signal(signal: Signal) -> dict:
 
     scored = _detect_and_score(signal)
     _signals[scored.id] = scored
+
+    # Prune the signal store periodically to prevent O(all-time) correlation cost.
+    # Only runs when the store exceeds the cap, so normal ingestion has zero overhead.
+    if len(_signals) > _MAX_SIGNAL_STORE:
+        _prune_signal_store()
 
     # Schedule a pipeline run. When an anomalous signal arrives, trigger correlation
     # with a short debounce (5s) so incidents populate promptly without stalling 5 minutes.
@@ -438,12 +470,39 @@ async def _ingest_signal(signal: Signal) -> dict:
 async def _windowed_pipeline_run() -> None:
     """
     Run the full correlation pipeline over all stored signals.
-    Resets the pending flag afterward.
+    _run_pipeline is sync + CPU-bound, so it runs in a thread executor to avoid
+    blocking the asyncio event loop and freezing the three SSE stream consumers.
+    Draft creation is scheduled here (on the event loop) after the executor returns.
     """
     global _last_pipeline_run_ts, _pending_pipeline
     try:
-        _run_pipeline(list(_signals.values()))
+        loop = asyncio.get_running_loop()
+
+        # Pre-filter to only signals within the correlation window BEFORE handing to the
+        # thread executor. graph.build() is O(N²) over anomalous signals — passing all
+        # historical signals (e.g. the 600-event startup buffer) would re-score every pair
+        # on every pipeline run. Filtering here keeps N = anomalous signals in the window,
+        # which stays bounded by the window size regardless of total signal history.
+        cfg = get_correlation_cfg()
+        window_seconds = cfg.get("window_minutes", 5) * 60
+        ref_ts = max(
+            (s.timestamp.timestamp() for s in _signals.values()),
+            default=time.time(),
+        )
+        signals_snapshot = [
+            s for s in _signals.values()
+            if (ref_ts - s.timestamp.timestamp()) <= window_seconds
+        ]
+        new_incidents = await loop.run_in_executor(None, _run_pipeline, signals_snapshot)
         _last_pipeline_run_ts = time.time()
+
+        # Schedule auto-draft generation here (on the event loop) for each new incident.
+        # _run_pipeline can't do this itself when running inside a thread executor
+        # because asyncio.get_running_loop() raises RuntimeError in worker threads.
+        for inc_dict in new_incidents:
+            inc_id = inc_dict.get("id")
+            if inc_id and inc_id not in _drafts and inc_id not in _draft_tasks:
+                asyncio.create_task(_get_or_create_draft(inc_id))
     except Exception:
         logger.exception("Windowed pipeline run failed")
     finally:
@@ -478,9 +537,10 @@ async def _consume_stream(stream_name: str, url: str) -> None:
     status_entry = _stream_status[stream_name]
     last_id = None
 
-    # By default, start at live HEAD so signals count starts at 0 upon server restart,
-    # rather than replaying the ~200-event historical simulator buffer per stream.
-    replay_history = os.getenv("REPLAY_STREAM_HISTORY", "false").lower() in ("true", "1", "yes")
+    # By default, replay the simulator's historical buffer on startup for fast initial
+    # signal ingestion. Use REPLAY_STREAM_HISTORY=false to start at live HEAD instead
+    # (e.g. after calling /api/reset, where you want a clean slate with no backlog).
+    replay_history = os.getenv("REPLAY_STREAM_HISTORY", "true").lower() not in ("false", "0", "no")
     if not replay_history:
         stream_channel = f"aiops-{stream_name}" if not stream_name.startswith("aiops-") else stream_name
         latest_seqs = await _get_latest_stream_seqs()

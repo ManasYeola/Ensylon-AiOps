@@ -60,37 +60,37 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
       num: 'GATE 01',
       title: 'Strong Edge Check',
       passed: gate1Passed,
-      desc: 'Correlated signals share strong temporal (<30s) and topological causal graph edges across adjacent pods.',
-      metricLabel: 'Edge weight',
-      metricVal: '0.94',
-      metricSub: '(>0.70)',
+      desc: 'Correlated signals share strong temporal (<30s) and topological causal graph edges across adjacent services.',
+      metricLabel: 'Check Status',
+      metricVal: gate1Passed ? 'PASSED' : 'FLAGGED',
+      metricSub: '(threshold >0.70)',
     },
     {
       num: 'GATE 02',
       title: 'Environment Consistency',
       passed: gate2Passed,
-      desc: `All 5 signals originate strictly within production Kubernetes cluster ${incident.environment || 'prod-eu-west-1'} namespaces without cross-env bleeding.`,
-      metricLabel: 'Cluster identity',
-      metricVal: incident.environment || 'prod-eu-west-1',
-      metricSub: '(100%)',
+      desc: `All ${incident.signal_ids?.length || 0} signals originate strictly within cluster ${incident.environment || incident.cluster_id || 'production'} namespaces without cross-env bleeding.`,
+      metricLabel: 'Environment',
+      metricVal: incident.environment || incident.cluster_id || 'Production',
+      metricSub: gate2Passed ? '(100% consistent)' : '(mismatch detected)',
     },
     {
       num: 'GATE 03',
       title: 'Coherence Check',
       passed: gate3Passed,
-      desc: 'Symptom trajectory matches known database exhaustion propagation patterns stored in ENSYLON vector memory.',
-      metricLabel: 'Cosine similarity',
-      metricVal: '0.91',
-      metricSub: 'vs vectors',
+      desc: 'Symptom trajectory matches verified correlation and causal propagation patterns.',
+      metricLabel: 'Coherence',
+      metricVal: gate3Passed ? 'COHERENT' : 'DEVIATED',
+      metricSub: gate3Passed ? '(verified)' : '(flagged)',
     },
     {
       num: 'GATE 04',
       title: 'Bridge Check',
       passed: gate4Passed,
-      desc: 'Verifies no spurious topological bridges between unrelated background telemetry clusters or third-party webhooks.',
-      metricLabel: 'Modularity score',
-      metricVal: '0.88',
-      metricSub: '(isolated)',
+      desc: 'Verifies no spurious topological bridges between unrelated background telemetry clusters.',
+      metricLabel: 'Topology Isolation',
+      metricVal: gate4Passed ? 'ISOLATED' : 'BRIDGED',
+      metricSub: gate4Passed ? '(clean boundary)' : '(bridge detected)',
     },
   ];
 
@@ -460,13 +460,33 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
               <span style={{ fontSize: '1rem', color: '#807663' }}>/ 100</span>
             </div>
 
-            {/* Severity Progress Bars */}
+            {/* Severity Breakdown Progress Bars */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {[
-                { label: 'Service Criticality: Tier-1 Service (comms-service)', weight: 'Weight 35%', pct: 85, color: '#D6A62C' },
-                { label: 'Blast Radius: 2 Downstream Consumers', weight: 'Weight 25%', pct: 45, color: '#D6A62C' },
-                { label: 'Error Rate Delta: +412% over p99 baseline', weight: 'Weight 25%', pct: 62, color: '#D6A62C' },
-                { label: 'User Impact Velocity: High (Outbound notifications blocked)', weight: 'Weight 15%', pct: 78, color: '#D6A62C' },
+                {
+                  label: `Impacted Services: ${incident.services?.length || 0} service(s) (${(incident.services || []).join(', ') || 'N/A'})`,
+                  weight: 'Blast Radius',
+                  pct: Math.min(100, Math.max(15, (incident.services?.length || 1) * 25)),
+                  color: '#D6A62C',
+                },
+                {
+                  label: `Correlated Telemetry: ${incident.signal_ids?.length || 0} anomaly signal(s)`,
+                  weight: 'Evidence Count',
+                  pct: Math.min(100, Math.max(20, (incident.signal_ids?.length || 1) * 20)),
+                  color: '#D6A62C',
+                },
+                {
+                  label: `Severity Tier: ${Number(severityScore) > 70 ? 'Critical' : Number(severityScore) >= 50 ? 'High' : 'Medium'}`,
+                  weight: `${severityScore} / 100`,
+                  pct: Math.min(100, Math.round(Number(severityScore) || 0)),
+                  color: Number(severityScore) > 70 ? '#BA1A1A' : '#D6A62C',
+                },
+                {
+                  label: `Validation Gates: ${passedCount} of 4 causal gates satisfied`,
+                  weight: `${Math.round((passedCount / 4) * 100)}%`,
+                  pct: (passedCount / 4) * 100,
+                  color: passedCount === 4 ? '#10B981' : '#D6A62C',
+                },
               ].map((bar, i) => (
                 <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem' }}>
@@ -509,8 +529,10 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
               color: '#565F6E',
             }}
           >
-            <span>Evaluated against 30-day baseline</span>
-            <span style={{ color: '#252525', fontWeight: 600 }}>Standard SLA Tier: Gold</span>
+            <span>Automated Topological Correlation</span>
+            <span style={{ color: '#252525', fontWeight: 600 }}>
+              {passedCount === 4 ? 'All Gates Passed' : `${passedCount}/4 Gates Passed`}
+            </span>
           </div>
         </div>
 
@@ -568,10 +590,30 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
               }}
             >
               {[
-                { label: 'Temporal Alignment', val: '0.99', sub: '42s clustering delta window', color: '#3D4654' },
-                { label: 'Topology Validation', val: '0.97', sub: 'Dependency graph aligned', color: '#3D4654' },
-                { label: 'Causal Gate Consensus', val: `${passedCount} / 4 Gates`, sub: 'Full threshold fulfillment', color: '#3D4654' },
-                { label: 'False Positive Probability', val: '< 1.2%', sub: 'Empirical Bayes verification', color: '#3D4654' },
+                {
+                  label: 'Edge Check Gate',
+                  val: gate1Passed ? 'PASSED' : 'FLAGGED',
+                  sub: 'Topological edge weight (>0.70)',
+                  color: gate1Passed ? '#10B981' : '#BA1A1A',
+                },
+                {
+                  label: 'Environment Gate',
+                  val: gate2Passed ? 'UNIFORM' : 'CROSS-ENV',
+                  sub: incident.environment || incident.cluster_id || 'Production scope',
+                  color: gate2Passed ? '#10B981' : '#D6A62C',
+                },
+                {
+                  label: 'Coherence & Isolation',
+                  val: gate3Passed && gate4Passed ? 'VERIFIED' : 'CHECK FAILED',
+                  sub: 'Temporal trajectory & boundary check',
+                  color: gate3Passed && gate4Passed ? '#10B981' : '#D6A62C',
+                },
+                {
+                  label: 'Causal Consensus',
+                  val: `${passedCount} / 4 Gates`,
+                  sub: passedCount === 4 ? 'All causal gates satisfied' : `${4 - passedCount} gate check(s) flagged`,
+                  color: '#3D4654',
+                },
               ].map((tile, i) => (
                 <div
                   key={i}
@@ -606,8 +648,8 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
               color: '#565F6E',
             }}
           >
-            <span>Model: Claude 3.5 Sonnet + GraphSAGE</span>
-            <span style={{ color: '#3D4654', fontWeight: 600 }}>Auto-Triage Approved</span>
+            <span>Engine: Autonomous AIOps Correlation System</span>
+            <span style={{ color: '#3D4654', fontWeight: 600 }}>Auto-Triage Evaluated</span>
           </div>
         </div>
       </div>

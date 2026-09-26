@@ -244,7 +244,7 @@ export default function TicketReview({
             style={{ margin: '0 auto 16px' }}
           />
           <h3 style={{ fontSize: '1.15rem', marginBottom: '8px' }}>
-            Auto-Synthesizing Incident Ticket with Claude...
+            Auto-Synthesizing Incident Ticket with AI...
           </h3>
           <p
             style={{
@@ -255,7 +255,7 @@ export default function TicketReview({
               lineHeight: 1.5,
             }}
           >
-            Claude is analyzing the{' '}
+            Analyzing the{' '}
             <strong>{incident.signal_ids?.length || 0}</strong> correlated
             telemetry signals and topological causal chains to produce the
             structured incident draft for your review.

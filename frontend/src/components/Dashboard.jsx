@@ -77,11 +77,6 @@ export default function Dashboard({
 
   const outlierCount = rejectedSignals.length;
 
-  const noiseRate =
-    allSignals.length > 0 && incidents.length > 0
-      ? Math.max(0, Math.min(99.9, ((1 - incidents.length / allSignals.length) * 100))).toFixed(1)
-      : '0.0';
-
   const critCount = incidents.filter((i) => (i.severity || 0) > 70).length;
   const highCount = incidents.filter((i) => (i.severity || 0) <= 70).length;
   const prodCount = incidents.filter((i) => i.environment === 'prod' || !i.environment).length;
@@ -142,38 +137,6 @@ export default function Dashboard({
               </button>
             );
           })}
-        </div>
-
-        {/* Time Range Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 18px',
-              borderRadius: 'var(--radius-full)',
-              fontSize: '0.82rem',
-              color: '#565F6E',
-              background: '#FAF8F0',
-              border: '1px solid var(--border-subtle)',
-              boxShadow: 'var(--shadow-sm)',
-              cursor: 'pointer',
-            }}
-          >
-            <span
-              style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: '#D6A62C',
-                display: 'inline-block',
-              }}
-            />
-            <span>Time Range:</span>
-            <span style={{ fontWeight: 600, color: '#252525' }}>{timeRange}</span>
-            <ChevronDown size={14} color="#807663" />
-          </div>
         </div>
       </div>
 
@@ -267,7 +230,7 @@ export default function Dashboard({
                     }}
                   >
                     <Server size={13} color="#807663" />
-                    <span>Cluster ID: #CL-0914</span>
+                    <span>{heroIncident.cluster_id || heroIncident.environment || heroIncident.id}</span>
                   </div>
                 </div>
 
@@ -309,7 +272,7 @@ export default function Dashboard({
                   >
                     <ShieldCheck size={14} color="#785A00" />
                     <span>
-                      CONF {heroIncident.confidence ? Math.round(heroIncident.confidence * 100) : 98}%
+                      CONF {heroIncident.confidence != null ? Math.round(heroIncident.confidence <= 1 ? heroIncident.confidence * 100 : heroIncident.confidence) : 0}%
                     </span>
                   </div>
 
@@ -762,116 +725,11 @@ export default function Dashboard({
           )}
         </div>
 
-        {/* Bento Cell 5: Noise Reduction Summary & Outlier Stat (Spans 4 cols on desktop) */}
+        {/* Bento Cell 5: Filtered Telemetry Noise Stream (Spans 12 cols on desktop) */}
         <div
           className="glass-card"
           style={{
-            gridColumn: 'span 4',
-            padding: '22px 24px',
-            borderRadius: 'var(--radius-xl)',
-            background: '#FAF8F0',
-            border: '1px solid var(--border-subtle)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            gap: '16px',
-          }}
-        >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <span
-                style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  color: '#3D4654',
-                }}
-              >
-                Noise Reduction Metric
-              </span>
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.74rem',
-                  padding: '3px 10px',
-                  borderRadius: 'var(--radius-full)',
-                  background: '#3D4654',
-                  color: '#FFFFFF',
-                  fontWeight: 600,
-                }}
-              >
-                {noiseRate}% Rate
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '2rem', fontWeight: 800, color: '#3D4654', letterSpacing: '-0.02em' }}>
-                {outlierCount}
-              </span>
-              <span style={{ fontSize: '0.85rem', color: '#565F6E' }}>isolated outliers</span>
-            </div>
-
-            <p style={{ fontSize: '0.78rem', color: '#565F6E', lineHeight: 1.5 }}>
-              Signals auto-suppressed using sliding entropy windows. None demonstrated cross-cluster correlation within 60 minutes.
-            </p>
-          </div>
-
-          <div
-            style={{
-              padding: '10px 14px',
-              borderRadius: 'var(--radius-md)',
-              background: '#FFFFFF',
-              border: '1px solid var(--border-subtle)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: 'var(--radius-full)',
-                  background: 'rgba(61, 70, 84, 0.08)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#3D4654',
-                }}
-              >
-                <FileText size={15} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#3D4654' }}>
-                  Jira Ticket Review
-                </span>
-                <span style={{ fontSize: '0.68rem', color: '#807663' }}>
-                  Requires manual operator trigger
-                </span>
-              </div>
-            </div>
-            <span
-              style={{
-                fontSize: '0.7rem',
-                padding: '2px 8px',
-                borderRadius: 'var(--radius-full)',
-                background: '#EAE6DB',
-                color: '#565F6E',
-                fontWeight: 600,
-              }}
-            >
-              {jiraTicketsCount || 0} Published · {Math.max(0, incidents.length - (jiraTicketsCount || 0))} Pending
-            </span>
-          </div>
-        </div>
-
-        {/* Bento Cell 6: Filtered Telemetry Noise Stream (Spans 8 cols on desktop) */}
-        <div
-          className="glass-card"
-          style={{
-            gridColumn: 'span 8',
+            gridColumn: 'span 12',
             padding: '22px 24px',
             borderRadius: 'var(--radius-xl)',
             background: '#FAF8F0',

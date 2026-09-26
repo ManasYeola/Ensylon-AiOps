@@ -228,7 +228,7 @@ export default function App() {
           </div>
 
           {/* Active Incident Indicator Chip */}
-          {selectedIncident ? (
+          {selectedIncident && (
             <div
               className="modern-nav-incident-chip"
               onClick={() => setActiveTab('details')}
@@ -251,30 +251,6 @@ export default function App() {
               <span className="badge badge-purple">
                 {(selectedIncident.services || []).join(', ')}
               </span>
-            </div>
-          ) : (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '6px 14px',
-                background: 'rgba(234, 230, 219, 0.5)',
-                borderRadius: '10px',
-                fontSize: '0.78rem',
-                color: '#807663',
-              }}
-            >
-              <span
-                style={{
-                  width: '7px',
-                  height: '7px',
-                  borderRadius: '50%',
-                  background: '#10B981',
-                  boxShadow: '0 0 6px rgba(16, 185, 129, 0.4)',
-                }}
-              />
-              <span style={{ fontWeight: 500 }}>Correlator Engine Online</span>
             </div>
           )}
         </nav>

@@ -33,18 +33,6 @@ export default function Header({
             >
               ENSYLON AIOps
             </h1>
-            <span
-              style={{
-                fontSize: '0.68rem',
-                padding: '2px 8px',
-                borderRadius: 'var(--radius-sm)',
-                background: '#EAE6DB',
-                color: '#565F6E',
-                fontWeight: 600,
-              }}
-            >
-              MVP v0.1
-            </span>
           </div>
           <p
             style={{
