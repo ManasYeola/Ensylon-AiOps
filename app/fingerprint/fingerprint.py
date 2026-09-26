@@ -16,7 +16,6 @@ import json
 from app.models.signal import Signal
 from app.models.fingerprint import IncidentFingerprint
 from app.correlation.topology import load_topology, get_hop_distance
-from app.config import get_fingerprint_cfg
 
 
 def _build_service_path(signals: list[Signal]) -> list[str]:
@@ -128,31 +127,3 @@ def similarity_score(fp_a: IncidentFingerprint, fp_b: IncidentFingerprint) -> fl
         + 0.10 * env_sim
     )
 
-
-def should_attach_to_existing(
-    new_signal: Signal,
-    existing_fingerprints: list[tuple[str, IncidentFingerprint]],
-) -> str | None:
-    """
-    Check if a late-arriving signal should be attached to an existing incident.
-    Returns the incident_id of the best match, or None if no match is found.
-    PRD §19 continuation flow.
-    """
-    cfg = get_fingerprint_cfg()
-    threshold = cfg["similarity_threshold"]
-
-    # Build a minimal single-signal fingerprint for the new signal
-    new_fp = generate_fingerprint([new_signal], severity=0, confidence=0)
-
-    best_id = None
-    best_score = 0.0
-
-    for inc_id, fp in existing_fingerprints:
-        score = similarity_score(new_fp, fp)
-        if score > best_score:
-            best_score = score
-            best_id = inc_id
-
-    if best_score >= threshold:
-        return best_id
-    return None

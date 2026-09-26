@@ -212,6 +212,7 @@ def _detect_and_score(signal: Signal) -> Signal:
         score, tid, template_text = score_log_signal(
             message=message,
             state=state,
+            timestamp=signal.timestamp,
         )
 
         evidence = signal.evidence or f"[REDACTED] {template_text}"

@@ -28,8 +28,28 @@ Window / baseline settings (from config.yaml detection section)
                           to baseline at which a burst is declared (score → 0.5).
 """
 from collections import defaultdict, deque
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Optional, Any
 import time
+
+
+def _to_epoch(ts: Any) -> float | None:
+    """Normalize datetime, ISO string, or numeric epoch timestamp to float epoch seconds."""
+    if ts is None:
+        return None
+    if isinstance(ts, (int, float)):
+        return float(ts)
+    if isinstance(ts, str):
+        clean = ts.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(clean)
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc).timestamp()
+        return dt.timestamp()
+    if isinstance(ts, datetime):
+        if ts.tzinfo is None:
+            return ts.replace(tzinfo=timezone.utc).timestamp()
+        return ts.timestamp()
+    raise TypeError(f"Unsupported timestamp type: {type(ts)}")
 
 try:
     from drain3 import TemplateMiner
@@ -150,10 +170,11 @@ class LogWindowState:
         self.baseline_windows = baseline_windows
         self.burst_multiplier = burst_multiplier
         self._clock = _clock or time.time
+        self._latest_timestamp: float | None = None
+        self._last_bucket_start: float | None = None
 
-        # deque of (bucket_start: float, counts: dict[tid, int])
-        # newest bucket is at the right
-        self._buckets: deque[tuple[float, dict[str, int]]] = deque()
+        # Dict mapping bucket_start_epoch (float) to {template_id: count}
+        self._buckets: dict[float, dict[str, int]] = {}
 
         # Historical per-window totals for baseline learning
         # deque of dict[tid, int] — one entry per complete window
@@ -171,15 +192,16 @@ class LogWindowState:
         return (now // self.bucket_seconds) * self.bucket_seconds
 
     def _expire(self, now: float) -> None:
-        """Drop buckets whose start_epoch is older than the window."""
+        """Drop buckets whose start_epoch is older than the window cutoff."""
         cutoff = now - self.window_seconds
-        while self._buckets and self._buckets[0][0] < cutoff:
-            self._buckets.popleft()
+        expired = [k for k in self._buckets if k < cutoff]
+        for k in expired:
+            del self._buckets[k]
 
     def _window_counts(self) -> dict[str, int]:
         """Aggregate counts across all current (unexpired) buckets."""
         totals: dict[str, int] = defaultdict(int)
-        for _, bucket_counts in self._buckets:
+        for bucket_counts in self._buckets.values():
             for tid, cnt in bucket_counts.items():
                 totals[tid] += cnt
         return dict(totals)
@@ -198,36 +220,64 @@ class LogWindowState:
 
     # ── Public API ──────────────────────────────────────────────────────────
 
-    def record(self, tid: str, template_text: str) -> tuple[int, float]:
+    def record(
+        self,
+        tid: str,
+        template_text: str,
+        timestamp: datetime | float | int | str | None = None,
+    ) -> tuple[int, float]:
         """
-        Record one occurrence of `tid` at the current time.
+        Record one occurrence of `tid` at the signal event timestamp.
         Returns (current_window_count, baseline_count).
         Expires old buckets and archives completed windows as a side effect.
         """
-        now = self._now()
-        self._expire(now)
-        self.template_texts[tid] = template_text
+        if timestamp is not None:
+            now = _to_epoch(timestamp)
+            if self._latest_timestamp is None or now > self._latest_timestamp:
+                self._latest_timestamp = now
+        else:
+            now = self._now()
+            self._latest_timestamp = now
 
+        self.template_texts[tid] = template_text
         bucket_start = self._current_bucket_start(now)
 
-        # Get or create the current bucket
-        if not self._buckets or self._buckets[-1][0] != bucket_start:
-            # A new bucket has started — archive the just-finished window snapshot
-            if self._buckets:
-                snapshot = self._window_counts()
-                if snapshot:
-                    self._completed_windows.append(snapshot)
-            self._buckets.append((bucket_start, {}))
+        # Expire buckets older than the sliding window relative to the latest timestamp
+        self._expire(self._latest_timestamp)
 
-        self._buckets[-1][1][tid] = self._buckets[-1][1].get(tid, 0) + 1
+        # If transitioning to a newer bucket, archive the completed snapshot
+        if self._last_bucket_start is not None and bucket_start > self._last_bucket_start:
+            snapshot = self._window_counts()
+            if snapshot:
+                self._completed_windows.append(snapshot)
+        if self._last_bucket_start is None or bucket_start > self._last_bucket_start:
+            self._last_bucket_start = bucket_start
+
+        # Record count in bucket if inside sliding window
+        cutoff = self._latest_timestamp - self.window_seconds
+        if bucket_start >= cutoff:
+            if bucket_start not in self._buckets:
+                self._buckets[bucket_start] = {}
+            self._buckets[bucket_start][tid] = self._buckets[bucket_start].get(tid, 0) + 1
 
         current = self._window_counts().get(tid, 0)
         baseline = self._baseline(tid)
         return current, baseline
 
-    def current_window_count(self, tid: str) -> int:
+    def current_window_count(
+        self,
+        tid: str,
+        timestamp: datetime | float | int | str | None = None,
+    ) -> int:
         """Snapshot of unexpired count for `tid` without recording anything."""
-        now = self._now()
+        if timestamp is not None:
+            now = _to_epoch(timestamp)
+        elif self._clock is not time.time:
+            now = self._now()
+        elif self._latest_timestamp is not None:
+            now = self._latest_timestamp
+        else:
+            now = self._now()
         self._expire(now)
         return self._window_counts().get(tid, 0)
 
@@ -237,11 +287,12 @@ class LogWindowState:
 # ---------------------------------------------------------------------------
 
 def score_log_signal(
-    message: str,
+    message: Any,
     state: "LogWindowState",
+    timestamp: datetime | float | int | str | None = None,
 ) -> tuple[float, str, str]:
     """
-    Compute anomaly_score (0.0–1.0) for a log signal.
+    Compute anomaly_score (0.0–1.0) for a log signal driven by event timestamp.
 
     The message MUST have been PII-redacted before calling this function.
     Template IDs are derived from the redacted text so no PII enters the
@@ -255,8 +306,15 @@ def score_log_signal(
 
     Returns (anomaly_score, template_id, template_text).
     """
-    tid, template_text = extract_template(message)
-    current, baseline = state.record(tid, template_text)
+    if hasattr(message, "evidence") or hasattr(message, "message"):
+        raw_msg = getattr(message, "evidence", None) or getattr(message, "message", None) or ""
+        ts = timestamp if timestamp is not None else getattr(message, "timestamp", None)
+    else:
+        raw_msg = str(message)
+        ts = timestamp
+
+    tid, template_text = extract_template(raw_msg)
+    current, baseline = state.record(tid, template_text, timestamp=ts)
 
     ratio = current / max(baseline, 1.0)
     burst_mult = state.burst_multiplier

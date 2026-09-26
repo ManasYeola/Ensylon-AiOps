@@ -4,6 +4,7 @@ PRD §14: static topology for MVP; no auto-discovery.
 """
 import json
 import logging
+from collections import deque
 from functools import lru_cache
 from pathlib import Path
 import httpx
@@ -43,29 +44,22 @@ def load_topology() -> dict[str, list[str]]:
 
 def get_hop_distance(service_a: str, service_b: str, max_hops: int = 4) -> int:
     """
-    BFS hop distance between two services in the topology graph.
-    Returns max_hops+1 if unreachable (= no topology relationship).
-    Treats the graph as undirected for correlation purposes.
+    BFS hop distance from service_a to service_b in the directed topology graph.
+    Returns max_hops+1 if unreachable (= no directed topology relationship).
+    Traverses only directed outgoing edges (src -> dst) defined in the topology data.
     """
     if service_a == service_b:
         return 0
 
     topo = load_topology()
 
-    # Build undirected adjacency
-    adj: dict[str, set[str]] = {}
-    for src, dsts in topo.items():
-        adj.setdefault(src, set()).update(dsts)
-        for dst in dsts:
-            adj.setdefault(dst, set()).add(src)
-
     visited = {service_a}
-    queue = [(service_a, 0)]
+    queue = deque([(service_a, 0)])
     while queue:
-        node, hops = queue.pop(0)
+        node, hops = queue.popleft()
         if hops >= max_hops:
             continue
-        for neighbor in adj.get(node, set()):
+        for neighbor in topo.get(node, []):
             if neighbor == service_b:
                 return hops + 1
             if neighbor not in visited:
@@ -76,5 +70,6 @@ def get_hop_distance(service_a: str, service_b: str, max_hops: int = 4) -> int:
 
 
 def are_topology_related(service_a: str, service_b: str, max_hops: int = 3) -> bool:
-    """Returns True if the two services are within max_hops of each other."""
-    return get_hop_distance(service_a, service_b) <= max_hops
+    """Returns True if service_b is reachable from service_a within max_hops in the directed topology graph."""
+    return get_hop_distance(service_a, service_b, max_hops=max_hops) <= max_hops
+
