@@ -1,7 +1,7 @@
 """
 Central configuration loader — reads config.yaml once and provides typed access.
 All thresholds and weights are loaded from here; never hardcode them in business logic.
-.env is loaded automatically so GROQ_API_KEY / GEMINI_API_KEY etc. are always available.
+.env is loaded automatically so ANTHROPIC_API_KEY is always available.
 """
 from pathlib import Path
 from functools import lru_cache

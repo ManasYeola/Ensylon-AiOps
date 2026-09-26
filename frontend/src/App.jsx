@@ -13,7 +13,6 @@ import Dashboard from './components/Dashboard';
 import IncidentDetails from './components/IncidentDetails';
 import EvidenceGraph from './components/EvidenceGraph';
 import TicketReview from './components/TicketReview';
-import WebhookModal from './components/WebhookModal';
 import { api } from './services/api';
 
 export default function App() {
@@ -26,7 +25,6 @@ export default function App() {
   const [graphData, setGraphData] = useState(null);
 
   const [isRunningDemo, setIsRunningDemo] = useState(false);
-  const [isWebhookModalOpen, setIsWebhookModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
   // Show a temporary toast message
@@ -202,7 +200,6 @@ export default function App() {
         health={health}
         isRunningDemo={isRunningDemo}
         onRunDemo={handleRunDemo}
-        onOpenWebhook={() => setIsWebhookModalOpen(true)}
         onRefresh={loadData}
       />
 
@@ -319,37 +316,6 @@ export default function App() {
           />
         )}
       </main>
-
-      {/* Global Broadsheet Footer */}
-      <footer
-        style={{
-          width: '100%',
-          background: '#FAF8F0',
-          borderTop: '1px solid var(--border-subtle)',
-          padding: '16px 28px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          fontSize: '0.78rem',
-          color: '#565F6E',
-        }}
-      >
-        <span>ENSYLON Observability &amp; Autonomous Telemetry Core &bull; BroadSheet Architecture</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <span style={{ fontWeight: 600 }}>SYSTEM HEALTH: OPTIMAL</span>
-          <span>&copy; 2025 ENSYLON Inc.</span>
-        </div>
-      </footer>
-
-      {/* Webhook Modal */}
-      <WebhookModal
-        isOpen={isWebhookModalOpen}
-        onClose={() => setIsWebhookModalOpen(false)}
-        onWebhookSuccess={() => {
-          loadData();
-          showToast('Webhook payload processed successfully!');
-        }}
-      />
     </div>
   );
 }

@@ -126,8 +126,8 @@ def normalize_grafana(raw: Union[Dict[str, Any], str]) -> Signal:
 
 def ingest_grafana_alerts(payload: Dict[str, Any]) -> List[Signal]:
     """
-    Ingest webhook alerts from Grafana (preserves backward compatibility).
-    Supports both legacy alertmanager webhook payloads and Section 3.3 format.
+    Ingest alerts from Grafana SSE stream payload.
+    Supports both alertmanager payloads and Section 3.3 format.
     """
     alerts = payload.get("alerts", [payload]) if isinstance(payload, dict) else [payload]
     signals: List[Signal] = []
