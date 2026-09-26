@@ -117,9 +117,47 @@ export default function TicketReview({
     }
   };
 
+  // Extract 1-line short issue summary
+  const getShortIssueSummary = () => {
+    if (!draft) return '';
+    const rootCause = draft.suspected_root_cause || '';
+    
+    // 1. Matches "Core Issue: ...", "Primary Issue: ...", etc.
+    const coreMatch = rootCause.match(/^(?:Core Issue|Primary Issue|Issue Summary|Summary):\s*([^\n\r]+)/i);
+    if (coreMatch) {
+      return coreMatch[1].trim();
+    }
 
+    // 2. Distinct first line before double break
+    const lines = rootCause.split(/\n\s*\n/);
+    if (lines.length > 1 && lines[0].length < 160) {
+      return lines[0].replace(/^(?:Core Issue|Primary Issue|Issue):\s*/i, '').trim();
+    }
 
-  // Publish to Jira (only permitted when draft is approved by human operator)
+    // 3. Fallback to draft.title (clean 1-line issue headline)
+    if (draft.title) {
+      return draft.title;
+    }
+
+    // 4. Fallback to first sentence of root cause
+    const firstSentence = rootCause.split(/[.!?]\s+/)[0];
+    if (firstSentence && firstSentence.length < 140) {
+      return firstSentence.trim();
+    }
+
+    return (draft.affected_services || []).join(', ') + ' telemetry anomaly detected';
+  };
+
+  // Get detailed analysis body without duplicating the Core Issue header line
+  const getDetailedAnalysis = () => {
+    if (!draft) return '';
+    const rootCause = draft.suspected_root_cause || '';
+    const parts = rootCause.split(/\n\s*\n/);
+    if (parts.length > 1 && /^(?:Core Issue|Primary Issue|Issue Summary|Summary):/i.test(parts[0])) {
+      return parts.slice(1).join('\n\n').trim();
+    }
+    return rootCause;
+  };
   const handlePublishJira = async () => {
     if (!incident || !draft) return;
     if (draft.review_status !== 'approved') {
@@ -763,20 +801,48 @@ export default function TicketReview({
                   Suspected Root Cause (Hypothesis)
                 </h4>
               </div>
-              <div
-                style={{
-                  padding: '6px 12px',
-                  background: 'rgba(214, 166, 44, 0.15)',
-                  border: '1px solid rgba(214, 166, 44, 0.35)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: '0.72rem',
-                  color: '#785A00',
-                  fontWeight: 600,
-                  marginBottom: '10px',
-                }}
-              >
-                UNVERIFIED HYPOTHESIS &mdash; Requires SRE Verification
-              </div>
+              {!isEditing && getShortIssueSummary() && (
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    background: '#FFFFFF',
+                    border: '1px solid rgba(214, 166, 44, 0.4)',
+                    borderLeft: '4px solid #D6A62C',
+                    borderRadius: 'var(--radius-md)',
+                    marginBottom: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '0.68rem',
+                      fontWeight: 800,
+                      letterSpacing: '0.04em',
+                      textTransform: 'uppercase',
+                      color: '#785A00',
+                      background: 'rgba(214, 166, 44, 0.15)',
+                      padding: '2px 8px',
+                      borderRadius: 'var(--radius-full)',
+                      flexShrink: 0,
+                    }}
+                  >
+                    Short Issue
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      color: '#252525',
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {getShortIssueSummary()}
+                  </span>
+                </div>
+              )}
               {isEditing ? (
                 <textarea
                   rows={4}
@@ -801,7 +867,7 @@ export default function TicketReview({
                     lineHeight: 1.5,
                   }}
                 >
-                  {draft.suspected_root_cause}
+                  {getDetailedAnalysis()}
                 </p>
               )}
             </div>

@@ -109,15 +109,18 @@ def build_evidence_package(
 # LLM system prompt
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """You are an SRE incident analyst. You will receive structured incident evidence with timestamps in Indian Standard Time (IST).
+SYSTEM_PROMPT = """You are a Principal Site Reliability Engineer (SRE) and Incident Commander. You analyze incoming telemetry, alerts, and logs to draft concise, highly actionable incident tickets. All timestamps must be in Indian Standard Time (IST).
 
 STRICT RULES:
-1. Use ONLY the evidence provided. Do not invent metrics, timestamps, services, causes, or remediation steps. When citing times, always use IST.
-2. The "suspected_root_cause" must be clearly marked as UNVERIFIED if it cannot be directly proven from the evidence. Begin with "UNVERIFIED HYPOTHESIS:" if uncertain.
-3. The "investigation_steps" must be actionable and reference only the observed services and components.
-4. Do not speculate beyond what the topology and signal evidence directly support.
-5. "title" must be concise (< 120 chars). "summary" must be 2-3 sentences of factual prose.
-6. You must call the `draft_incident_ticket` tool with your analysis — do not respond with plain text."""
+1. Grounded in Evidence: Use ONLY the provided evidence. Do not invent unobserved services, timestamps, or metrics. When citing times, always use IST.
+2. Analytical Root Cause Diagnosis: For "suspected_root_cause", start with a concise 1-line summary statement of the core issue (e.g. "Core Issue: [1-line summary of what failed and why]"), followed by a double line break and a detailed technical analysis explaining the failure mechanism.
+   - Do NOT use generic boilerplate disclaimers (e.g. avoid repeating "UNVERIFIED HYPOTHESIS:" or "The absence of topology data prevents...").
+   - Formulate a clear, assertive engineering diagnosis based on the affected components and metric patterns.
+3. Actionable Investigation Steps: "investigation_steps" is MANDATORY and MUST contain at least 3 concrete, ordered technical troubleshooting steps referencing the specific services, metrics, and components in the incident. Never return an empty array.
+4. Concise & Professional:
+   - "title" must be concise (< 120 chars) and clearly describe the failure.
+   - "summary" must be 2-3 sentences summarizing the operational impact, affected services, and resolution/current state.
+5. You must call the `draft_incident_ticket` tool with your analysis — do not respond with plain text."""
 
 # Tool definition — forces Claude to output a structured, validated JSON payload.
 DRAFT_TOOL: dict = {
@@ -140,8 +143,8 @@ DRAFT_TOOL: dict = {
             "suspected_root_cause": {
                 "type": "string",
                 "description": (
-                    "Hypothesised root cause. Must begin with 'UNVERIFIED HYPOTHESIS:' "
-                    "if not directly proven by the evidence."
+                    "Analytical root cause diagnosis. Start with a 1-line summary: 'Core Issue: <1-line summary of failure>', "
+                    "followed by a blank line and the in-depth technical analysis explaining the failure mechanism."
                 ),
             },
             "investigation_steps": {
@@ -220,6 +223,15 @@ def generate_ticket_draft(
     #   - observed_evidence  → always from deterministic evidence package (never LLM)
     #   - timeline           → always from deterministic evidence package (never LLM)
     #   - title/summary/root_cause/steps → from LLM, grounded in evidence
+    steps = llm_output.get("investigation_steps") or []
+    if not steps:
+        svc_str = ", ".join(incident.services) if incident.services else "affected services"
+        steps = [
+            f"Review application logs and APM traces for {svc_str} during the incident window.",
+            f"Inspect resource utilisation (CPU, memory, connection pools) for {svc_str}.",
+            f"Verify downstream and upstream dependencies for correlated latency or error spikes.",
+        ]
+
     return TicketDraft(
         title=llm_output.get("title", f"Incident {incident.id}"),
         severity=incident.severity,
@@ -228,7 +240,7 @@ def generate_ticket_draft(
         summary=llm_output.get("summary", ""),
         timeline=evidence["timeline"],
         observed_evidence=evidence["observed_evidence"],  # deterministic, never LLM
-        suspected_root_cause=llm_output.get("suspected_root_cause", "UNVERIFIED: Unknown"),
-        investigation_steps=llm_output.get("investigation_steps", []),
+        suspected_root_cause=llm_output.get("suspected_root_cause", "Under investigation: telemetry anomaly detected."),
+        investigation_steps=steps,
         review_status=None,
     )
