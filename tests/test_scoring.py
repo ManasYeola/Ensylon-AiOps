@@ -21,10 +21,18 @@ Service criticality reference:
 """
 import pytest
 from datetime import datetime, timedelta
+import json
+from pathlib import Path
 from app.models.signal import Signal
-from app.scoring.severity import calculate_severity
+from app.scoring.severity import (
+    calculate_severity,
+    get_service_criticality,
+    _load_criticality_map,
+    CRITICALITY_MAP_PATH,
+)
 from app.scoring.confidence import calculate_confidence
 from app.correlation.graph import EvidenceGraph
+from app.config import load_config
 
 BASE_TIME = datetime(2026, 9, 26, 10, 0, 0)
 
@@ -106,6 +114,36 @@ def test_severity_magnitude_uses_anomaly_score():
     low  = [make_signal("L1", service="agency-db", anomaly_score=0.2)]
     high = [make_signal("H1", service="agency-db", anomaly_score=0.9)]
     assert calculate_severity(high) > calculate_severity(low)
+
+
+def test_service_criticality_matches_criticality_map_json():
+    """Verify that get_service_criticality pulls values exclusively from data/criticality_map.json."""
+    with open(CRITICALITY_MAP_PATH, "r", encoding="utf-8") as f:
+        expected_map = json.load(f)
+
+    assert len(expected_map) > 0
+    for svc_name, expected_val in expected_map.items():
+        assert get_service_criticality(svc_name) == float(expected_val)
+        # Test case-insensitivity
+        assert get_service_criticality(svc_name.upper()) == float(expected_val)
+
+
+def test_config_yaml_has_no_service_criticality():
+    """Verify config.yaml has no redundant service_criticality section."""
+    load_config.cache_clear()
+    cfg = load_config()
+    assert "service_criticality" not in cfg.get("severity", {})
+
+
+def test_missing_criticality_map_raises_error(monkeypatch):
+    """Verify there is no silent hardcoded fallback if criticality_map.json is missing."""
+    _load_criticality_map.cache_clear()
+    fake_path = Path("non_existent_dir/criticality_map.json")
+    monkeypatch.setattr("app.scoring.severity.CRITICALITY_MAP_PATH", fake_path)
+    with pytest.raises(FileNotFoundError):
+        _load_criticality_map()
+    _load_criticality_map.cache_clear()
+
 
 
 # ---------------------------------------------------------------------------
