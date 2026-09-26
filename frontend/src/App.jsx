@@ -137,10 +137,10 @@ export default function App() {
   };
 
   const tabs = [
-    { id: 'dashboard', label: '1. Dashboard', icon: LayoutDashboard },
-    { id: 'details', label: '2. Incident & Gates', icon: ShieldAlert },
-    { id: 'graph', label: '3. Evidence Graph', icon: Network },
-    { id: 'review', label: '4. Ticket Review & Jira', icon: FileCheck },
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'details', label: 'Incident & Gates', icon: ShieldAlert, count: incidents.length },
+    { id: 'graph', label: 'Evidence Graph', icon: Network },
+    { id: 'review', label: 'Ticket Review & Jira', icon: FileCheck, count: jiraTickets.length },
   ];
 
   return (
@@ -180,15 +180,9 @@ export default function App() {
 
       {/* Main Content Area */}
       <main style={{ padding: '0 28px 40px 28px', flex: 1 }}>
-        {/* Navigation Tabs */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderBottom: '1px solid var(--border-subtle)',
-          marginBottom: '20px',
-        }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
+        {/* Navigation Tabs Bar */}
+        <nav className="modern-navbar" aria-label="Main Navigation">
+          <div className="modern-tabs-track">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -196,32 +190,36 @@ export default function App() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '10px 16px',
-                    background: 'transparent',
-                    border: 'none',
-                    borderBottom: isActive ? '2px solid #D6A62C' : '2px solid transparent',
-                    color: isActive ? '#252525' : '#565F6E',
-                    fontWeight: isActive ? 700 : 500,
-                    fontSize: '0.88rem',
-                    cursor: 'pointer',
-                    transition: 'all var(--transition-fast)',
-                  }}
+                  className={`modern-tab-btn ${isActive ? 'active' : ''}`}
                 >
-                  <Icon size={16} color={isActive ? '#D6A62C' : '#565F6E'} />
+                  <Icon size={16} color={isActive ? '#D6A62C' : '#807663'} />
                   <span>{tab.label}</span>
+                  {tab.count !== undefined && tab.count > 0 && (
+                    <span className="modern-tab-badge">{tab.count}</span>
+                  )}
                 </button>
               );
             })}
           </div>
 
           {/* Active Incident Indicator Chip */}
-          {selectedIncident && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.8rem' }}>
-              <span style={{ color: 'var(--text-muted)' }}>Active Incident:</span>
+          {selectedIncident ? (
+            <div
+              className="modern-nav-incident-chip"
+              onClick={() => setActiveTab('details')}
+              style={{ cursor: 'pointer' }}
+              title="Click to view Incident & Validation Gates"
+            >
+              <div className="live-pulse" />
+              <span style={{
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                color: '#807663',
+              }}>
+                Active Incident
+              </span>
               <span className="font-mono badge badge-amber">
                 {selectedIncident.id}
               </span>
@@ -229,8 +227,32 @@ export default function App() {
                 {(selectedIncident.services || []).join(', ')}
               </span>
             </div>
+          ) : (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '6px 14px',
+                background: 'rgba(234, 230, 219, 0.5)',
+                borderRadius: '10px',
+                fontSize: '0.78rem',
+                color: '#807663',
+              }}
+            >
+              <span
+                style={{
+                  width: '7px',
+                  height: '7px',
+                  borderRadius: '50%',
+                  background: '#10B981',
+                  boxShadow: '0 0 6px rgba(16, 185, 129, 0.4)',
+                }}
+              />
+              <span style={{ fontWeight: 500 }}>Correlator Engine Online</span>
+            </div>
           )}
-        </div>
+        </nav>
 
         {/* Tab Views */}
         {activeTab === 'dashboard' && (
