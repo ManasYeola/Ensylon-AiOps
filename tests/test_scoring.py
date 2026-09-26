@@ -1,5 +1,23 @@
 """
-Severity and Confidence tests — PRD §29 scoring tests.
+Severity and Confidence tests.
+
+Uses the real Nexus Agency service names from data/criticality_map.json
+(HTML §6.2) so the assertions reflect the actual business-criticality rankings.
+
+Service criticality reference:
+    payments-service     95
+    enrollment-service   92
+    carrier-service      88
+    agency-gateway       85
+    agency-db            80
+    compensation-service 78
+    rulesforge           75
+    party-service        72
+    distribution-service 65
+    product-service      60
+    comms-service        40
+    docforge             30
+    <unknown>            50  (default per HTML §6.2)
 """
 import pytest
 from datetime import datetime, timedelta
@@ -8,67 +26,90 @@ from app.scoring.severity import calculate_severity
 from app.scoring.confidence import calculate_confidence
 from app.correlation.graph import EvidenceGraph
 
-BASE_TIME = datetime(2026, 9, 12, 10, 0, 0)
+BASE_TIME = datetime(2026, 9, 26, 10, 0, 0)
 
 
-def make_signal(id, service="payment", value=None, offset=0) -> Signal:
+def make_signal(id, service="payments-service", value=None, offset=0, anomaly_score=0.0) -> Signal:
     return Signal(
         id=id,
         timestamp=BASE_TIME + timedelta(seconds=offset),
-        source="cloudwatch",
+        source="cloudwatch_metrics",
         environment="prod",
         service=service,
         component="api",
         type="metric_anomaly",
         value=value,
+        anomaly_score=anomaly_score,
     )
 
 
 # ---------------------------------------------------------------------------
-# Severity tests — PRD §17: 0.35*Blast + 0.35*Criticality + 0.20*Trend + 0.10*Magnitude
+# Severity tests
 # ---------------------------------------------------------------------------
 
 def test_severity_range():
-    sigs = [make_signal(f"S{i}", service="payment", value=95) for i in range(5)]
+    sigs = [make_signal(f"S{i}", service="payments-service", value=95) for i in range(5)]
     result = calculate_severity(sigs)
     assert 0.0 <= result <= 100.0
 
 
 def test_severity_critical_service_raises_score():
-    payment_sigs = [make_signal(f"P{i}", service="payment", value=95) for i in range(3)]
-    internal_sigs = [make_signal(f"I{i}", service="internal_admin", value=20) for i in range(3)]
+    """payments-service (95) must score higher than docforge (30)."""
+    payment_sigs = [make_signal(f"P{i}", service="payments-service", value=95) for i in range(3)]
+    low_sigs     = [make_signal(f"L{i}", service="docforge",          value=20) for i in range(3)]
     payment_score = calculate_severity(payment_sigs)
-    internal_score = calculate_severity(internal_sigs)
-    assert payment_score > internal_score, "Payment (criticality=92) must score higher than internal_admin (20)"
+    low_score     = calculate_severity(low_sigs)
+    assert payment_score > low_score, (
+        f"payments-service (criticality=95) must score higher than docforge (30), "
+        f"got {payment_score} vs {low_score}"
+    )
 
 
 def test_severity_multi_service_higher_than_single():
-    single = [make_signal("S1", service="payment")]
-    multi = [
-        make_signal("S1", service="payment"),
-        make_signal("S2", service="checkout"),
-        make_signal("S3", service="order"),
-        make_signal("S4", service="database"),
+    single = [make_signal("S1", service="payments-service")]
+    multi  = [
+        make_signal("S1", service="payments-service"),
+        make_signal("S2", service="enrollment-service"),
+        make_signal("S3", service="carrier-service"),
+        make_signal("S4", service="agency-db"),
     ]
     assert calculate_severity(multi) > calculate_severity(single)
 
 
 def test_severity_expected_range_for_scenario():
-    # PRD §27 expected: Severity ~88 for the 17-signal scenario
-    # This test uses a representative subset
+    """High-impact multi-service scenario should produce severity >= 70."""
     sigs = [
-        make_signal("S1", service="database", value=98, offset=0),
-        make_signal("S2", service="payment", value=None, offset=20),
-        make_signal("S3", service="checkout", value=850, offset=200),
-        make_signal("S4", service="order", value=None, offset=240),
+        make_signal("S1", service="agency-db",        value=98,  offset=0,   anomaly_score=0.9),
+        make_signal("S2", service="payments-service",  value=None, offset=20, anomaly_score=0.8),
+        make_signal("S3", service="enrollment-service",value=850, offset=200, anomaly_score=0.7),
+        make_signal("S4", service="carrier-service",   value=None, offset=240, anomaly_score=0.6),
     ]
     sev = calculate_severity(sigs)
-    # Should be in high-severity range (not exact 88 — depends on sub-score details)
     assert sev >= 70.0, f"Expected high severity, got {sev}"
 
 
+def test_severity_unknown_service_gets_neutral_default():
+    """Unknown services get criticality 50 — neither high nor trivial (HTML §6.2)."""
+    known   = [make_signal("K1", service="payments-service")]
+    unknown = [make_signal("U1", service="totally-unknown-svc")]
+    known_score   = calculate_severity(known)
+    unknown_score = calculate_severity(unknown)
+    # unknown should be strictly less than payments-service (95) and non-zero
+    assert 0 < unknown_score < known_score
+
+
+def test_severity_magnitude_uses_anomaly_score():
+    """
+    When anomaly_score is set, magnitude should reflect it.
+    Two clusters identical except one has higher anomaly_scores should differ in severity.
+    """
+    low  = [make_signal("L1", service="agency-db", anomaly_score=0.2)]
+    high = [make_signal("H1", service="agency-db", anomaly_score=0.9)]
+    assert calculate_severity(high) > calculate_severity(low)
+
+
 # ---------------------------------------------------------------------------
-# Confidence tests — PRD §18: 0.35*Density + 0.25*Agreement + 0.20*Topology + 0.20*Temporal
+# Confidence tests
 # ---------------------------------------------------------------------------
 
 def _get_edges_for(signals):
@@ -79,24 +120,24 @@ def _get_edges_for(signals):
 
 
 def test_confidence_range():
-    sigs = [make_signal(f"S{i}", service="payment", offset=i*10) for i in range(4)]
+    sigs = [make_signal(f"S{i}", service="payments-service", offset=i*10) for i in range(4)]
     edges = _get_edges_for(sigs)
     conf = calculate_confidence(edges, len(sigs))
     assert 0.0 <= conf <= 1.0
 
 
 def test_confidence_same_service_higher():
-    same = [make_signal(f"S{i}", service="payment", offset=i*5) for i in range(4)]
+    same = [make_signal(f"S{i}", service="payments-service", offset=i*5) for i in range(4)]
     diff = [
-        make_signal("A", service="payment", offset=0),
-        make_signal("B", service="recommendation", offset=10),
-        make_signal("C", service="internal_admin", offset=20),
-        make_signal("D", service="unknown_svc", offset=30),
+        make_signal("A", service="payments-service",  offset=0),
+        make_signal("B", service="comms-service",     offset=10),
+        make_signal("C", service="docforge",          offset=20),
+        make_signal("D", service="unknown-svc-xyz",   offset=30),
     ]
     edges_same = _get_edges_for(same)
     edges_diff = _get_edges_for(diff)
-    conf_same = calculate_confidence(edges_same, len(same))
-    conf_diff = calculate_confidence(edges_diff, len(diff))
+    conf_same  = calculate_confidence(edges_same, len(same))
+    conf_diff  = calculate_confidence(edges_diff, len(diff))
     assert conf_same > conf_diff
 
 
@@ -106,15 +147,12 @@ def test_confidence_no_edges():
 
 
 def test_severity_and_confidence_are_independent():
-    """Severity and confidence must be computed independently (PRD §7/G7)."""
-    from app.scoring.severity import calculate_severity
-    from app.scoring.confidence import calculate_confidence
-    # Running both should not affect each other's output
-    sigs = [make_signal(f"S{i}", service="payment", value=90, offset=i*10) for i in range(5)]
+    """Severity and confidence must be computed independently (HTML §C4)."""
+    sigs  = [make_signal(f"S{i}", service="payments-service", value=90, offset=i*10) for i in range(5)]
     edges = _get_edges_for(sigs)
-    sev1 = calculate_severity(sigs)
+    sev1  = calculate_severity(sigs)
     conf1 = calculate_confidence(edges, len(sigs))
-    sev2 = calculate_severity(sigs)
+    sev2  = calculate_severity(sigs)
     conf2 = calculate_confidence(edges, len(sigs))
     assert sev1 == sev2
     assert conf1 == conf2

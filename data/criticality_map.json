@@ -1,0 +1,14 @@
+{
+  "payments-service":     95,
+  "enrollment-service":   92,
+  "carrier-service":      88,
+  "agency-gateway":       85,
+  "agency-db":            80,
+  "compensation-service": 78,
+  "rulesforge":           75,
+  "party-service":        72,
+  "distribution-service": 65,
+  "product-service":      60,
+  "comms-service":        40,
+  "docforge":             30
+}

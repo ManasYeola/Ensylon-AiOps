@@ -7,7 +7,9 @@ Must verify:
   → ticket draft generated → Jira blocked before approval → Jira succeeds after approval
 """
 import pytest
-from app.ingestion.logs import load_signals
+import json
+from pathlib import Path
+from app.models.signal import Signal
 from app.correlation.graph import EvidenceGraph
 from app.correlation.union_find import build_candidate_clusters
 from app.correlation.gates import validate_cluster
@@ -26,7 +28,9 @@ SIGNAL_FILE = "data/sample_signals.json"
 @pytest.fixture
 def pipeline():
     """Run the full pipeline once and return all results."""
-    signals = load_signals(SIGNAL_FILE)
+    with open(SIGNAL_FILE, "r") as f:
+        data = json.load(f)
+    signals = [Signal(**item) for item in data]
     assert len(signals) == 18, f"Expected 18 signals (17 related + 1 negative test), got {len(signals)}"
 
     graph = EvidenceGraph(signals)
@@ -66,6 +70,8 @@ def test_severity_calculated(pipeline):
     cluster_signals = [pipeline["graph"].signals[sid] for sid in cluster_ids]
     sev = calculate_severity(cluster_signals)
     assert 0.0 <= sev <= 100.0
+    # Sample signals use Nexus Agency critical services (payments-service=95, agency-db=80, carrier=88)
+    # so severity must be substantially above the neutral 50 baseline
     assert sev > 50.0, f"Expected high severity for critical services, got {sev}"
 
 

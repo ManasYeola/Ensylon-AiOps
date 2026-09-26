@@ -21,9 +21,9 @@ BASE_TIME = datetime(2026, 9, 12, 10, 0, 0)
 
 def make_signal(
     id="S1",
-    service="payment",
+    service="payments-service",
     component="api",
-    type="log_anomaly",
+    type="error_log_burst",
     template_id=None,
     environment="prod",
     offset_seconds=0,
@@ -32,7 +32,7 @@ def make_signal(
     return Signal(
         id=id,
         timestamp=BASE_TIME + timedelta(seconds=offset_seconds),
-        source="application_log",
+        source="application_logs",
         environment=environment,
         service=service,
         component=component,
@@ -71,39 +71,46 @@ def test_temporal_weak():
 # ---------------------------------------------------------------------------
 
 def test_service_same():
-    a = make_signal("A", service="payment")
-    b = make_signal("B", service="payment")
+    a = make_signal("A", service="payments-service")
+    b = make_signal("B", service="payments-service")
     assert calculate_service_score(a, b) == 1.0
 
 
 def test_service_different():
-    a = make_signal("A", service="payment")
-    b = make_signal("B", service="recommendation")
+    a = make_signal("A", service="payments-service")
+    b = make_signal("B", service="comms-service")
     assert calculate_service_score(a, b) == 0.0
 
 
 # ---------------------------------------------------------------------------
-# Topology score (uses data/topology.json: database→payment→checkout→order)
+# Topology score — uses data/topology.json (HTML §6.1 Nexus Agency graph)
+# Key edges: payments-service → agency-db (1 hop), enrollment-service → payments-service (1 hop)
 # ---------------------------------------------------------------------------
 
 def test_topology_same_service():
-    a = make_signal("A", service="payment")
-    b = make_signal("B", service="payment")
+    a = make_signal("A", service="payments-service")
+    b = make_signal("B", service="payments-service")
     assert calculate_topology_score(a, b) == 1.0
 
 
 def test_topology_direct_neighbor():
-    a = make_signal("A", service="database")
-    b = make_signal("B", service="payment")
+    # payments-service → agency-db is a direct 1-hop dependency (HTML §6.1)
+    a = make_signal("A", service="payments-service")
+    b = make_signal("B", service="agency-db")
     score = calculate_topology_score(a, b)
     assert score >= 0.80
 
 
 def test_topology_no_relationship():
-    a = make_signal("A", service="recommendation")
-    b = make_signal("B", service="payment")
+    # In the Nexus Agency undirected graph most services connect through agency-db.
+    # The scorer returns 0.0 only for pairs with hop-distance > 3.
+    # comms-service is reachable from docforge in 3 hops (docforge→agency-db→carrier-service→comms-service)
+    # so score = 0.30.  Two services with NO path at all would need an isolated node, which doesn't
+    # exist in this graph.  We assert the score is strictly less than the strong-edge threshold (0.70).
+    a = make_signal("A", service="docforge")
+    b = make_signal("B", service="comms-service")
     score = calculate_topology_score(a, b)
-    assert score == 0.0
+    assert score < 0.70, f"Distant services should not have a strong topology score, got {score}"
 
 
 # ---------------------------------------------------------------------------
@@ -150,10 +157,10 @@ def test_union_find_strong_edges_cluster():
     """
     # Build signals where A-B and B-C are strongly correlated (same service, same time)
     # and C-D are weakly correlated (different service, no topology)
-    a = make_signal("A", service="payment", template_id="T001", offset_seconds=0)
-    b = make_signal("B", service="payment", template_id="T001", offset_seconds=10)
-    c = make_signal("C", service="payment", template_id="T001", offset_seconds=20)
-    d = make_signal("D", service="recommendation", type="metric_anomaly", offset_seconds=30)
+    a = make_signal("A", service="payments-service", template_id="T001", offset_seconds=0)
+    b = make_signal("B", service="payments-service", template_id="T001", offset_seconds=10)
+    c = make_signal("C", service="payments-service", template_id="T001", offset_seconds=20)
+    d = make_signal("D", service="comms-service", type="metric_anomaly", offset_seconds=30)
 
     graph = EvidenceGraph([a, b, c, d])
     graph.build()

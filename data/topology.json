@@ -1,6 +1,14 @@
 {
-  "database": ["payment", "checkout", "order"],
-  "payment": ["checkout", "order"],
-  "checkout": ["order"],
-  "order": []
+  "agency-gateway":       ["carrier-service", "party-service"],
+  "enrollment-service":   ["payments-service", "carrier-service", "party-service", "product-service"],
+  "carrier-service":      ["payments-service", "agency-db", "comms-service"],
+  "payments-service":     ["agency-db", "rulesforge"],
+  "rulesforge":           ["agency-db"],
+  "compensation-service": ["payments-service", "distribution-service", "agency-db"],
+  "distribution-service": ["party-service", "agency-db"],
+  "party-service":        ["agency-db"],
+  "product-service":      ["agency-db"],
+  "comms-service":        [],
+  "docforge":             ["agency-db"],
+  "agency-db":            []
 }

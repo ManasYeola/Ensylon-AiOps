@@ -34,6 +34,8 @@ detection:
   zscore_threshold: 3.0
   window_size: 20
   ewma_alpha: 0.3
+  zscore_cap: 6.0          # z-score at which anomaly_score saturates to 1.0
+  anomaly_threshold: 0.40  # minimum anomaly_score to enter correlation pipeline
 
 validation:
   coherence_avg_threshold: 0.60
