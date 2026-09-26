@@ -41,6 +41,23 @@ export default function TicketReview({
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState(null);
 
+  // Default values based on incident
+  const defaultTitle = incident
+    ? `[DRAFT] SRE-4891: Critical Latency & 503 Cascades on ${(incident.services || ['comms-service'])[0]} due to Redis Connection Pool Starvation`
+    : '';
+
+  const defaultSummary = incident
+    ? `Autonomous correlation grouped 5 distinct telemetry anomalies within a 101-second window into a single root-cause chain. Total blast radius is currently bounded to outbound notification dispatch and downstream webhook delivery in production cluster ${incident.environment || 'prod-eu-west-1'}.`
+    : '';
+
+  const defaultHypothesis = incident
+    ? `Recent deployment commit #7a4e09f (v2.14.0) introduced unhandled async promise rejections in the batch notification worker, leaking Redis socket handles without returning them to the pool under concurrent load.`
+    : '';
+
+  const ticketTitle = draft?.title || defaultTitle;
+  const ticketSummary = draft?.summary || defaultSummary;
+  const ticketHypothesis = draft?.suspected_root_cause || defaultHypothesis;
+
   // Edit Mode state
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
@@ -68,16 +85,19 @@ export default function TicketReview({
       try {
         const existing = await api.getDraft(incident.id);
         setDraft(existing);
-        setEditedTitle(existing.title || '');
-        setEditedSummary(existing.summary || '');
-        setEditedHypothesis(existing.suspected_root_cause || '');
+        setEditedTitle(existing?.title || defaultTitle);
+        setEditedSummary(existing?.summary || defaultSummary);
+        setEditedHypothesis(existing?.suspected_root_cause || defaultHypothesis);
       } catch (e) {
         setDraft(null);
+        setEditedTitle(defaultTitle);
+        setEditedSummary(defaultSummary);
+        setEditedHypothesis(defaultHypothesis);
       }
     };
 
     loadDraft();
-  }, [incident]);
+  }, [incident, defaultTitle, defaultSummary, defaultHypothesis]);
 
   // Generate draft via Claude / LLM
   const handleGenerateDraft = async () => {
@@ -87,9 +107,9 @@ export default function TicketReview({
     try {
       const newDraft = await api.createDraft(incident.id);
       setDraft(newDraft);
-      setEditedTitle(newDraft.title || '');
-      setEditedSummary(newDraft.summary || '');
-      setEditedHypothesis(newDraft.suspected_root_cause || '');
+      setEditedTitle(newDraft.title || defaultTitle);
+      setEditedSummary(newDraft.summary || defaultSummary);
+      setEditedHypothesis(newDraft.suspected_root_cause || defaultHypothesis);
       showToast('AI Draft Synthesized', 'Claude generated broadsheet incident review draft.');
     } catch (err) {
       setError(`Failed to generate draft: ${err.message}`);
@@ -104,15 +124,26 @@ export default function TicketReview({
       // Save changes
       setDraft((prev) => ({
         ...prev,
-        title: editedTitle,
-        summary: editedSummary,
-        suspected_root_cause: editedHypothesis,
+        title: editedTitle || ticketTitle,
+        summary: editedSummary || ticketSummary,
+        suspected_root_cause: editedHypothesis || ticketHypothesis,
       }));
       setIsEditing(false);
       showToast('Draft Updated', 'Local edits saved to SRE review buffer.');
     } else {
+      // Seed with existing text so textareas are never blank
+      setEditedTitle(editedTitle || ticketTitle);
+      setEditedSummary(editedSummary || ticketSummary);
+      setEditedHypothesis(editedHypothesis || ticketHypothesis);
       setIsEditing(true);
     }
+  };
+
+  const handleCancelEdit = () => {
+    setEditedTitle(ticketTitle);
+    setEditedSummary(ticketSummary);
+    setEditedHypothesis(ticketHypothesis);
+    setIsEditing(false);
   };
 
   const handleApproveAndPublish = async () => {
@@ -213,18 +244,7 @@ export default function TicketReview({
   const isPublished = draft?.status === 'published' || draft?.jira_key;
   const isRejected = draft?.status === 'rejected';
 
-  // Fallback defaults for broadsheet layout
-  const ticketTitle =
-    draft?.title ||
-    `[DRAFT] SRE-4891: Critical Latency & 503 Cascades on ${(incident.services || ['comms-service'])[0]} due to Redis Connection Pool Starvation`;
 
-  const ticketSummary =
-    draft?.summary ||
-    `Autonomous correlation grouped 5 distinct telemetry anomalies within a 101-second window into a single root-cause chain. Total blast radius is currently bounded to outbound notification dispatch and downstream webhook delivery in production cluster ${incident.environment || 'prod-eu-west-1'}.`;
-
-  const ticketHypothesis =
-    draft?.suspected_root_cause ||
-    `Recent deployment commit #7a4e09f (v2.14.0) introduced unhandled async promise rejections in the batch notification worker, leaking Redis socket handles without returning them to the pool under concurrent load.`;
 
   const runbookSteps = [
     {
@@ -492,8 +512,9 @@ export default function TicketReview({
             </label>
             {isEditing ? (
               <textarea
-                value={editedTitle}
+                value={editedTitle || ticketTitle}
                 onChange={(e) => setEditedTitle(e.target.value)}
+                placeholder={ticketTitle}
                 rows={2}
                 style={{
                   width: '100%',
@@ -607,8 +628,9 @@ export default function TicketReview({
           >
             {isEditing ? (
               <textarea
-                value={editedSummary}
+                value={editedSummary || ticketSummary}
                 onChange={(e) => setEditedSummary(e.target.value)}
+                placeholder={ticketSummary}
                 rows={3}
                 style={{
                   width: '100%',
@@ -1024,8 +1046,9 @@ export default function TicketReview({
           >
             {isEditing ? (
               <textarea
-                value={editedHypothesis}
+                value={editedHypothesis || ticketHypothesis}
                 onChange={(e) => setEditedHypothesis(e.target.value)}
+                placeholder={ticketHypothesis}
                 rows={3}
                 style={{
                   width: '100%',
@@ -1316,6 +1339,24 @@ export default function TicketReview({
             <span>Reject Draft</span>
           </button>
 
+          {isEditing && (
+            <button
+              className="btn btn-secondary"
+              onClick={handleCancelEdit}
+              style={{
+                borderRadius: 'var(--radius-full)',
+                padding: '8px 18px',
+                fontSize: '0.82rem',
+                background: '#FFFFFF',
+                color: '#565F6E',
+                borderColor: 'rgba(61, 70, 84, 0.25)',
+              }}
+            >
+              <X size={16} />
+              <span>Cancel</span>
+            </button>
+          )}
+
           <button
             className="btn btn-secondary"
             onClick={handleToggleEdit}
@@ -1324,9 +1365,10 @@ export default function TicketReview({
               borderRadius: 'var(--radius-full)',
               padding: '8px 18px',
               fontSize: '0.82rem',
-              background: '#FFFFFF',
-              color: '#252525',
-              borderColor: 'rgba(61, 70, 84, 0.25)',
+              background: isEditing ? '#FEDD7A' : '#FFFFFF',
+              color: isEditing ? '#776001' : '#252525',
+              borderColor: isEditing ? '#D6A62C' : 'rgba(61, 70, 84, 0.25)',
+              fontWeight: isEditing ? 700 : 500,
             }}
           >
             <Edit3 size={16} />
