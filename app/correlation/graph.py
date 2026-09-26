@@ -36,7 +36,9 @@ class EvidenceGraph:
                 if delta > window_sec:
                     continue   # outside time window — not even a candidate
 
-                edge = correlation_score(a, b)
+                edge_ab = correlation_score(a, b)
+                edge_ba = correlation_score(b, a)
+                edge = edge_ab if edge_ab.correlation_score >= edge_ba.correlation_score else edge_ba
                 self.edges.append(edge)
                 self._adj[a.id][b.id] = edge
                 self._adj[b.id][a.id] = edge

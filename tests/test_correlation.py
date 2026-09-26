@@ -14,6 +14,7 @@ from app.correlation.scoring import (
 )
 from app.correlation.graph import EvidenceGraph
 from app.correlation.union_find import UnionFind, build_candidate_clusters
+from app.correlation.topology import get_hop_distance, are_topology_related
 
 
 BASE_TIME = datetime(2026, 9, 12, 10, 0, 0)
@@ -84,12 +85,14 @@ def test_service_different():
 
 # ---------------------------------------------------------------------------
 # Topology score — uses data/topology.json (HTML §6.1 Nexus Agency graph)
-# Key edges: payments-service → agency-db (1 hop), enrollment-service → payments-service (1 hop)
+# Key directed edges: payments-service → agency-db (1 hop), enrollment-service → payments-service (1 hop)
 # ---------------------------------------------------------------------------
 
 def test_topology_same_service():
     a = make_signal("A", service="payments-service")
     b = make_signal("B", service="payments-service")
+    assert get_hop_distance("payments-service", "payments-service") == 0
+    assert are_topology_related("payments-service", "payments-service") is True
     assert calculate_topology_score(a, b) == 1.0
 
 
@@ -97,20 +100,40 @@ def test_topology_direct_neighbor():
     # payments-service → agency-db is a direct 1-hop dependency (HTML §6.1)
     a = make_signal("A", service="payments-service")
     b = make_signal("B", service="agency-db")
-    score = calculate_topology_score(a, b)
-    assert score >= 0.80
+
+    # Forward direction A -> B: 1-hop reachable
+    assert get_hop_distance("payments-service", "agency-db") == 1
+    assert are_topology_related("payments-service", "agency-db") is True
+    score_ab = calculate_topology_score(a, b)
+    assert score_ab >= 0.80
+
+    # Reverse direction B -> A: agency-db does NOT call payments-service (unreachable in directed graph)
+    assert get_hop_distance("agency-db", "payments-service") == 5
+    assert are_topology_related("agency-db", "payments-service") is False
+    score_ba = calculate_topology_score(b, a)
+    assert score_ba == 0.0
+
+
+def test_topology_directed_reachability():
+    # 1 hop: enrollment-service -> payments-service exists
+    assert get_hop_distance("enrollment-service", "payments-service") == 1
+    # Reverse does NOT exist: payments-service -> enrollment-service is unreachable
+    assert get_hop_distance("payments-service", "enrollment-service") == 5
+
+    # 2 hops: enrollment-service -> payments-service -> agency-db exists
+    assert get_hop_distance("enrollment-service", "agency-db") == 2
+    # Reverse does NOT exist: agency-db -> enrollment-service is unreachable
+    assert get_hop_distance("agency-db", "enrollment-service") == 5
 
 
 def test_topology_no_relationship():
-    # In the Nexus Agency undirected graph most services connect through agency-db.
-    # The scorer returns 0.0 only for pairs with hop-distance > 3.
-    # comms-service is reachable from docforge in 3 hops (docforge→agency-db→carrier-service→comms-service)
-    # so score = 0.30.  Two services with NO path at all would need an isolated node, which doesn't
-    # exist in this graph.  We assert the score is strictly less than the strong-edge threshold (0.70).
+    # In the directed graph, docforge has an outgoing edge only to agency-db.
+    # agency-db has no outgoing edges, so comms-service is completely unreachable from docforge.
     a = make_signal("A", service="docforge")
     b = make_signal("B", service="comms-service")
+    assert get_hop_distance("docforge", "comms-service") == 5
     score = calculate_topology_score(a, b)
-    assert score < 0.70, f"Distant services should not have a strong topology score, got {score}"
+    assert score == 0.0
 
 
 # ---------------------------------------------------------------------------
