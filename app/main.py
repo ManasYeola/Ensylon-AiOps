@@ -36,6 +36,7 @@ Endpoints:
     GET    /api/config
     GET    /api/streams/status        SSE stream connection status for UI
 """
+import os
 import asyncio
 import uuid
 import logging
@@ -60,7 +61,7 @@ from app.scoring.confidence import calculate_confidence
 from app.fingerprint.fingerprint import generate_fingerprint, fingerprint_hash, similarity_score
 from app.llm.ticket import generate_ticket_draft
 from app.review.review import review_ticket, is_approved
-from app.jira.mock_jira import publish_to_jira, get_mock_tickets, JiraError
+from app.jira import publish_to_jira, get_mock_tickets, get_jira_config, JiraError
 from app.config import load_config, get_detection_cfg, get_correlation_cfg, get_fingerprint_cfg
 from app.detection.metrics import score_metric_signal
 from app.detection.logs import score_log_signal, LogWindowState, make_log_window_state
@@ -675,6 +676,34 @@ def publish_jira(incident_id: str) -> dict:
 @app.get("/api/jira/tickets")
 def list_jira_tickets() -> list[dict]:
     return get_mock_tickets()
+
+
+class JiraConfigRequest(BaseModel):
+    jira_url: str
+    jira_email: str
+    jira_api_token: str
+    jira_project_key: str
+    jira_issue_type: str = "Bug"
+
+
+@app.get("/api/jira/config")
+def get_jira_settings() -> dict:
+    return get_jira_config()
+
+
+@app.post("/api/jira/config")
+def update_jira_settings(req: JiraConfigRequest) -> dict:
+    if req.jira_url:
+        os.environ["JIRA_URL"] = req.jira_url.strip().rstrip("/")
+    if req.jira_email:
+        os.environ["JIRA_EMAIL"] = req.jira_email.strip()
+    if req.jira_api_token:
+        os.environ["JIRA_API_TOKEN"] = req.jira_api_token.strip()
+    if req.jira_project_key:
+        os.environ["JIRA_PROJECT_KEY"] = req.jira_project_key.strip().upper()
+    if req.jira_issue_type:
+        os.environ["JIRA_ISSUE_TYPE"] = req.jira_issue_type.strip()
+    return get_jira_config()
 
 
 # ---------------------------------------------------------------------------

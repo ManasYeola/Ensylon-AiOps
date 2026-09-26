@@ -68,6 +68,12 @@ export const api = {
       method: 'POST',
     }),
   getJiraTickets: () => request('/api/jira/tickets'),
+  getJiraConfig: () => request('/api/jira/config'),
+  updateJiraConfig: (config) =>
+    request('/api/jira/config', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    }),
 
   // Demo Pipeline & Webhooks
   getStreamsStatus: () => request('/api/streams/status'),

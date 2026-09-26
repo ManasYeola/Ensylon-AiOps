@@ -47,7 +47,12 @@ export default function App() {
         api.getJiraTickets(),
       ]);
 
-      if (h.status === 'fulfilled') setHealth(h.value);
+      if (h.status === 'fulfilled') {
+        setHealth(h.value);
+      } else {
+        setHealth(null); // backend is offline
+      }
+
       if (sList.status === 'fulfilled') setSignals(sList.value);
       if (jList.status === 'fulfilled') setJiraTickets(jList.value);
 
@@ -67,7 +72,8 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.error('Failed to load initial data:', err);
+      console.error('Failed to load data:', err);
+      setHealth(null);
     }
   };
 

@@ -63,7 +63,7 @@ export default function Header({
           }} />
           <span style={{ color: 'var(--text-secondary)' }}>API:</span>
           <span style={{ fontWeight: 600, color: health?.status === 'ok' ? 'var(--green)' : 'var(--rose)' }}>
-            {health?.status === 'ok' ? 'ONLINE' : 'CONNECTING...'}
+            {health?.status === 'ok' ? 'ONLINE' : 'OFFLINE'}
           </span>
         </div>
 
@@ -80,7 +80,7 @@ export default function Header({
         }}>
           <Cpu size={14} color="var(--purple)" />
           <span style={{ color: 'var(--text-secondary)' }}>LLM Engine:</span>
-          <span style={{ fontWeight: 600, color: '#C4B5FD' }}>Groq / compound-mini</span>
+          <span style={{ fontWeight: 600, color: '#C4B5FD' }}>Anthropic / Claude 3.5 Sonnet</span>
         </div>
       </div>
 
