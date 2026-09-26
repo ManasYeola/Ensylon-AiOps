@@ -37,6 +37,12 @@ detection:
   zscore_cap: 6.0          # z-score at which anomaly_score saturates to 1.0
   anomaly_threshold: 0.40  # minimum anomaly_score to enter correlation pipeline
 
+  # Log burst detection (sliding-window frequency tracker)
+  log_window_seconds: 300   # width of the sliding count window (5 min)
+  log_bucket_seconds: 60    # time-bucket resolution (1 min); one bucket expires per minute
+  log_baseline_windows: 5   # number of complete windows used to learn the baseline rate
+  log_burst_multiplier: 3.0 # current/baseline ratio at which anomaly_score reaches 0.5
+
 validation:
   coherence_avg_threshold: 0.60
   coherence_strong_ratio: 0.50

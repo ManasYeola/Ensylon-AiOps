@@ -70,26 +70,61 @@ def normalize_cloudwatch(raw: Union[Dict[str, Any], str]) -> Signal:
     environment = affected.get("environment") or redacted_event.get("environment") or "prod"
     region = affected.get("region") or redacted_event.get("Region") or "ap-south-1"
 
-    # Evidence: description if available, else descriptive trigger summary
-    evidence = description if description else f"{alarm_name} ({trigger.get('MetricName', 'metric')} in ALARM)"
+    # ── Alarm state ─────────────────────────────────────────────────────────
+    # Read from redacted event (values like "ALARM", "OK", "INSUFFICIENT_DATA")
+    alarm_state: str = str(redacted_event.get("NewStateValue") or "UNKNOWN").upper()
 
-    # Numeric value
-    obs_val = trigger.get("ObservedValue")
-    threshold_val = trigger.get("Threshold")
-    value: Union[float, None] = None
-    for candidate in (obs_val, threshold_val, redacted_event.get("value")):
-        if candidate is not None:
-            try:
-                value = float(candidate)
-                break
-            except (ValueError, TypeError):
-                continue
+    # ── Numeric values ───────────────────────────────────────────────────────
+    # ObservedValue is what the metric actually measured this period;
+    # Threshold is the configured alarm boundary.
+    obs_val: Union[float, None] = None
+    threshold_val: Union[float, None] = None
+    try:
+        raw_obs = trigger.get("ObservedValue")
+        if raw_obs is not None:
+            obs_val = float(raw_obs)
+    except (ValueError, TypeError):
+        pass
+    try:
+        raw_thr = trigger.get("Threshold")
+        if raw_thr is not None:
+            threshold_val = float(raw_thr)
+    except (ValueError, TypeError):
+        pass
 
-    # Metadata holds source-specific contextual information
+    # signal.value = the observed metric reading (used by z-score scorer)
+    value: Union[float, None] = obs_val if obs_val is not None else threshold_val
+
+    # ── Evidence string ──────────────────────────────────────────────────────
+    if alarm_state == "OK":
+        # For OK/recovery events, the AlarmDescription field is the text that was
+        # set when the alarm was created (it describes the fault condition, not
+        # the recovery).  Always generate a state-specific evidence string here.
+        evidence = (
+            f"{alarm_name} recovered"
+            + (f" — {component} now {obs_val}" if obs_val is not None else "")
+            + (f" (threshold {threshold_val})" if threshold_val is not None else "")
+        )
+    elif description:
+        evidence = description
+    else:
+        # ALARM or INSUFFICIENT_DATA — no description available
+        evidence = (
+            f"{alarm_name} ({component} in {alarm_state})"
+            + (f" — observed {obs_val}" if obs_val is not None else "")
+            + (f" vs threshold {threshold_val}" if threshold_val is not None else "")
+        )
+
+    # ── Metadata (redacted; preserved for downstream scoring + evidence) ─────
     metadata = {
         "alarm_name": alarm_name,
-        "new_state": redacted_event.get("NewStateValue"),
-        "old_state": redacted_event.get("OldStateValue"),
+        # alarm_state is the key detection consumes to know OK vs ALARM
+        "alarm_state": alarm_state,
+        "new_state": alarm_state,
+        "old_state": str(redacted_event.get("OldStateValue") or "").upper(),
+        "observed_value": obs_val,
+        "threshold_value": threshold_val,
+        # Full trigger dict kept for downstream context (already PII-redacted)
         "trigger": trigger,
         "affected_resources": affected,
     }

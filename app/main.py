@@ -2,41 +2,50 @@
 Ensylon AIOps FastAPI Application — HTML §7 (What You Must Build).
 
 Pipeline (per signal):
-    Ingestion / normalisation (Member 1)
+    Ingestion / normalisation (Member 1 — SSE streams via lifespan tasks)
     → C2  Anomaly Detection   (this module — stateful windows)
     → filter (anomaly_score ≥ threshold)
-    → C3  Correlation Engine  (EvidenceGraph + union-find)
+    → C3  Correlation Engine  (EvidenceGraph + union-find, windowed)
     → C4  Validation Gates    (4 gates)
     → C4  Scoring             (Impact Severity + Correlation Confidence, kept separate)
     → C5  Incident exposure   (LLM draft → human review → ticket write)
 
-Endpoints implemented:
-    POST   /api/signals               ingest one normalised Signal, run detection
-    POST   /api/signals/batch         batch ingest + full pipeline
+Stream startup:
+    Three SSE consumer tasks (aiops-logs, aiops-cloudwatch, aiops-grafana) are
+    launched as background asyncio tasks during the FastAPI lifespan.  Each task
+    runs consume_sse_stream() which handles reconnects with Last-Event-ID and
+    ignores :keepalive comments.  Every signal that comes off the stream is
+    handed to _ingest_signal() which runs detection and triggers windowed
+    pipeline.  No separate runner script is needed.
+
+Endpoints:
+    POST   /api/signals               ingest one pre-normalised Signal
+    POST   /api/signals/batch         batch ingest + forced pipeline run
     GET    /api/signals               list all ingested signals
     GET    /api/signals/{id}          fetch single signal
-    GET    /api/incidents             list all accepted incidents
+    GET    /api/incidents             list accepted incidents
     GET    /api/incidents/{id}        fetch single incident
-    GET    /api/incidents/{id}/graph  evidence graph for incident
+    GET    /api/incidents/{id}/graph  evidence graph
     GET    /api/incidents/{id}/fingerprint
     POST   /api/incidents/{id}/draft  generate LLM draft
     GET    /api/incidents/{id}/draft  fetch existing draft
     POST   /api/incidents/{id}/review human review decision
     POST   /api/jira/tickets          publish approved ticket
     GET    /api/jira/tickets          list mock Jira tickets
-    GET    /api/health
+    GET    /api/health                pipeline health + stream status
     GET    /api/config
-    GET    /api/health
-    GET    /api/config
+    GET    /api/streams/status        SSE stream connection status for UI
 """
+import asyncio
 import uuid
-import json
 import logging
+import time
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -52,23 +61,27 @@ from app.fingerprint.fingerprint import generate_fingerprint, fingerprint_hash
 from app.llm.ticket import generate_ticket_draft
 from app.review.review import review_ticket, is_approved
 from app.jira.mock_jira import publish_to_jira, get_mock_tickets, JiraError
-from app.config import load_config, get_detection_cfg
+from app.config import load_config, get_detection_cfg, get_correlation_cfg
 from app.detection.metrics import score_metric_signal
-from app.detection.logs import score_log_signal
+from app.detection.logs import score_log_signal, LogWindowState, make_log_window_state
+from app.ingestion.sse_client import consume_sse_stream, SIMULATOR_STREAMS
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# In-memory stores  (replace with SQLite / Redis in next iteration)
+# In-memory stores
 # ---------------------------------------------------------------------------
 
-# Normalised signals (all, including non-anomalous)
+# All normalised + scored signals, keyed by signal.id
 _signals: dict[str, Signal] = {}
 
-# Accepted incidents
+# Accepted incidents, keyed by incident id
 _incidents: dict[str, Incident] = {}
 
-# Fingerprints and evidence graphs
+# Fingerprint hash → incident_id   (for deduplication)
+_fp_to_incident: dict[str, str] = {}
+
+# Fingerprint objects and evidence graphs
 _fingerprints: dict[str, object] = {}
 _graphs: dict[str, EvidenceGraph] = {}
 
@@ -76,35 +89,30 @@ _graphs: dict[str, EvidenceGraph] = {}
 _drafts: dict[str, TicketDraft] = {}
 
 # ── Anomaly detection state ─────────────────────────────────────────────────
-# metric_history: (service, component) → rolling list of observed metric values
-#   Used by the z-score / EWMA scorer.
 _metric_history: dict[tuple[str, str], list[float]] = defaultdict(list)
 
-# log_frequency: (service,) → {template_id: count}
-#   Counts within the current sliding window.
-_log_frequency: dict[str, dict[str, int]] = defaultdict(dict)
+# Per-service sliding-window frequency state for log burst detection.
+# Each service gets its own LogWindowState so burst counts don't cross
+# service boundaries and window expiry is per-service.
+_log_window_state: dict[str, LogWindowState] = {}
 
-# log_baseline: (service,) → {template_id: expected_count_per_window}
-#   Populated from the first N observations, then frozen for MVP.
-_log_baseline: dict[str, dict[str, float]] = defaultdict(dict)
+_MAX_HISTORY = 200
 
-# ---------------------------------------------------------------------------
-# FastAPI app
-# ---------------------------------------------------------------------------
+# ── Correlation window state ─────────────────────────────────────────────────
+# Tracks the last time the full correlation pipeline ran, so that
+# individual signal ingests can coalesce into a window-triggered run
+# instead of running correlation on every single signal (O(N²) per signal).
+_last_pipeline_run_ts: float = 0.0   # epoch seconds
+_pending_pipeline = False            # flag: a run is scheduled
 
-app = FastAPI(
-    title="Ensylon AIOps",
-    description="Intelligent incident correlation and ticket drafting — HTML §7",
-    version="0.2.0",
-)
+# ── SSE stream status (for UI / Member 3) ───────────────────────────────────
+_stream_status: dict[str, dict] = {
+    name: {"connected": False, "last_event_id": None, "events_received": 0, "last_error": None}
+    for name in SIMULATOR_STREAMS
+}
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ── Background tasks (kept so we can cancel them on shutdown) ────────────────
+_stream_tasks: list[asyncio.Task] = []
 
 
 # ---------------------------------------------------------------------------
@@ -112,7 +120,6 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 _GRAFANA_SIGNAL_TYPES = {"grafana_alert", "latency_alert", "grafana"}
-_MAX_HISTORY = 200       # cap per-key history lists to avoid unbounded growth
 
 
 def _detect_and_score(signal: Signal) -> Signal:
@@ -121,73 +128,86 @@ def _detect_and_score(signal: Signal) -> Signal:
     Returns the signal with anomaly_score populated.
     Grafana alerts are always fully anomalous (score = 1.0).
     """
-    sig_type = (signal.type or "").lower()
+    sig_type = (signal.type or signal.signal_type or "").lower()
     source   = (signal.source or "").lower()
 
     # ── Grafana alerts: bypass detection, always anomalous ──────────────────
-    if sig_type in _GRAFANA_SIGNAL_TYPES or source in ("grafana", "grafana_alerts"):
+    if sig_type in _GRAFANA_SIGNAL_TYPES or source in ("grafana_alerts",):
         return signal.model_copy(update={
             "anomaly_score": 1.0,
             "evidence": signal.evidence or signal.message or signal.component,
         })
 
     # ── Metric signals: z-score + EWMA scorer ───────────────────────────────
-    if sig_type in ("metric_anomaly", "cloudwatch_metrics", "cloudwatch") or source in (
-        "cloudwatch", "cloudwatch_metrics"
-    ):
+    if sig_type in ("metric_anomaly",) or source in ("cloudwatch_metrics",):
         key = (signal.service, signal.component)
         history = _metric_history[key]
 
         current_value = signal.value
         if current_value is None:
-            # No numeric value — treat as zero-score; still store
             return signal.model_copy(update={"anomaly_score": 0.0})
 
-        # Compute pct_threshold from metadata if available
         meta = signal.metadata or {}
-        threshold_val = meta.get("threshold")
-        pct_breach = None
-        if threshold_val and threshold_val > 0:
-            pct_breach = max((current_value - threshold_val) / threshold_val, 0.0)
+
+        # alarm_state is stored as a flat top-level key by normalize_cloudwatch().
+        # Fall back to reading new_state for backward compat.
+        alarm_state: Optional[str] = (
+            meta.get("alarm_state")
+            or meta.get("new_state")
+        )
+
+        # threshold_value is stored flat by the new normalizer.
+        # Fall back to Trigger.Threshold for older payloads.
+        threshold_val: Optional[float] = meta.get("threshold_value")
+        if threshold_val is None:
+            trigger = meta.get("trigger", {})
+            if isinstance(trigger, dict):
+                raw = trigger.get("Threshold")
+                try:
+                    threshold_val = float(raw) if raw is not None else None
+                except (ValueError, TypeError):
+                    threshold_val = None
 
         score = score_metric_signal(
             history=list(history),
             current_value=current_value,
             threshold_value=threshold_val,
-            pct_threshold=pct_breach,
+            alarm_state=alarm_state,
         )
 
-        # Update rolling history
-        history.append(current_value)
-        if len(history) > _MAX_HISTORY:
-            _metric_history[key] = history[-_MAX_HISTORY:]
+        # Only update history for non-OK states so recoveries don't
+        # corrupt the baseline that subsequent ALARM events compare against.
+        if alarm_state is None or alarm_state.upper() != "OK":
+            history.append(current_value)
+            if len(history) > _MAX_HISTORY:
+                _metric_history[key] = history[-_MAX_HISTORY:]
 
+        # Build evidence — preserve the normalizer's redacted description when
+        # present; fall back to a concise computed string.
         evidence = signal.evidence or (
             f"{signal.component} observed {current_value}"
-            + (f" (threshold {threshold_val})" if threshold_val else "")
+            + (f" vs threshold {threshold_val}" if threshold_val is not None else "")
+            + (f" [{alarm_state}]" if alarm_state else "")
         )
         return signal.model_copy(update={"anomaly_score": score, "evidence": evidence})
 
-    # ── Log signals: template burst detection ────────────────────────────────
-    if sig_type in ("error_log_burst", "application_logs", "log") or source in (
-        "application_logs", "logs"
-    ):
+
+    # ── Log signals: template burst detection (sliding window) ────────────────
+    if sig_type in ("error_log_burst",) or source in ("application_logs",):
         message = signal.evidence or signal.message or ""
         if not message:
             return signal.model_copy(update={"anomaly_score": 0.0})
 
-        freq = _log_frequency[signal.service]
-        baseline = _log_baseline[signal.service]
+        # Get or create the per-service LogWindowState (config-driven parameters)
+        if signal.service not in _log_window_state:
+            _log_window_state[signal.service] = make_log_window_state()
+        state = _log_window_state[signal.service]
 
+        # PII has already been redacted by the ingestion layer before this point
         score, tid, template_text = score_log_signal(
             message=message,
-            frequency_counter=freq,
-            baseline=baseline,
+            state=state,
         )
-
-        # Seed baseline from first observation of each template
-        if tid not in baseline:
-            _log_baseline[signal.service][tid] = max(freq.get(tid, 1), 1)
 
         evidence = signal.evidence or f"[REDACTED] {template_text}"
         return signal.model_copy(update={
@@ -196,34 +216,42 @@ def _detect_and_score(signal: Signal) -> Signal:
             "evidence": evidence,
         })
 
-    # ── Unknown type: pass through with score 0 ──────────────────────────────
     return signal.model_copy(update={"anomaly_score": 0.0})
 
 
 def _is_anomalous(signal: Signal) -> bool:
-    """Return True if the signal should enter the correlation pipeline."""
     cfg = get_detection_cfg()
     threshold = cfg.get("anomaly_threshold", 0.40)
     return signal.anomaly_score >= threshold
 
 
 # ---------------------------------------------------------------------------
-# C3 + C4 — Correlation, Validation & Scoring pipeline
+# C3 + C4 — Correlation, Validation & Scoring
 # ---------------------------------------------------------------------------
 
 def _run_pipeline(signals: list[Signal]) -> list[dict]:
     """
-    Full pipeline for a set of signals:
-        1. Filter to anomalous signals only
-        2. Build EvidenceGraph (C3 correlation scoring across 5 dimensions)
-        3. Union-Find candidate clusters (C3 candidate generation)
-        4. Validate each cluster through 4 gates (C4 validation)
-        5. Score accepted incidents: Impact Severity (0–100) + Confidence (0–1)
-        6. Fingerprint and store
-    Returns list of accepted incident dicts.
+    Full pipeline:
+        1. Filter to anomalous signals inside the correlation window
+        2. Build EvidenceGraph (C3 — 5 dimensions)
+        3. Union-Find candidate clusters (C3)
+        4. Validate through 4 gates (C4)
+        5. Score: Impact Severity + Correlation Confidence separately (C4)
+        6. Deduplication via fingerprint hash — skip clusters already active
+        7. Fingerprint + store new incidents
+
+    Returns list of newly accepted incident dicts (not already-existing ones).
     """
-    # 1. Filter
-    anomalous = [s for s in signals if _is_anomalous(s)]
+    cfg = get_correlation_cfg()
+    window_minutes = cfg.get("window_minutes", 5)
+    window_seconds = window_minutes * 60
+    now = time.time()
+
+    # 1. Filter: anomalous AND inside temporal window
+    anomalous = [
+        s for s in signals
+        if _is_anomalous(s) and (now - s.timestamp.timestamp()) <= window_seconds
+    ]
     if not anomalous:
         return []
 
@@ -244,9 +272,25 @@ def _run_pipeline(signals: list[Signal]) -> list[dict]:
         cluster_signals = [graph.signals[sid] for sid in cluster_ids]
         internal_edges  = graph.edges_within_cluster(cluster_ids)
 
-        # 5. Score — kept separate per HTML §C4 ("do not blend them")
+        # 5. Score — kept separate per HTML §C4
         sev  = calculate_severity(cluster_signals)
         conf = calculate_confidence(internal_edges, len(cluster_signals))
+
+        # 6. Deduplication: compute fingerprint hash and skip if already active
+        fp    = generate_fingerprint(cluster_signals, sev, conf)
+        fp_id = fingerprint_hash(fp)
+
+        if fp_id in _fp_to_incident:
+            # Same structural fingerprint → extend the existing incident's signal set
+            existing_id = _fp_to_incident[fp_id]
+            if existing_id in _incidents:
+                existing = _incidents[existing_id]
+                # Merge any new signal IDs into the existing incident
+                merged_ids = list(dict.fromkeys(existing.signal_ids + cluster_ids))
+                _incidents[existing_id] = existing.model_copy(
+                    update={"signal_ids": merged_ids}
+                )
+            continue  # Don't produce a new incident dict
 
         inc_id = f"INC-{uuid.uuid4().hex[:6].upper()}"
         incident = Incident(
@@ -257,19 +301,147 @@ def _run_pipeline(signals: list[Signal]) -> list[dict]:
             severity=sev,
             confidence=conf,
             gate_results=validation.to_dict(),
+            fingerprint_id=fp_id,
         )
 
-        # 6. Fingerprint
-        fp    = generate_fingerprint(cluster_signals, sev, conf)
-        fp_id = fingerprint_hash(fp)
-        incident = incident.model_copy(update={"fingerprint_id": fp_id})
-
-        _incidents[inc_id] = incident
-        _fingerprints[fp_id] = fp
-        _graphs[inc_id] = graph
+        _incidents[inc_id]    = incident
+        _fingerprints[fp_id]  = fp
+        _fp_to_incident[fp_id] = inc_id
+        _graphs[inc_id]       = graph
         results.append(incident.model_dump())
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# Core ingest function — shared by API endpoint AND SSE consumer
+# ---------------------------------------------------------------------------
+
+async def _ingest_signal(signal: Signal) -> dict:
+    """
+    Score (C2), store, and schedule a windowed pipeline run.
+    Used by both POST /api/signals and the SSE background tasks.
+    """
+    global _last_pipeline_run_ts, _pending_pipeline
+
+    scored = _detect_and_score(signal)
+    _signals[scored.id] = scored
+
+    # Schedule a pipeline run at window boundary rather than running for
+    # every single signal — prevents O(N²) re-correlation on every arrival.
+    cfg = get_correlation_cfg()
+    window_seconds = cfg.get("window_minutes", 5) * 60
+    elapsed_since_last_run = time.time() - _last_pipeline_run_ts
+
+    if not _pending_pipeline and elapsed_since_last_run >= window_seconds:
+        _pending_pipeline = True
+        asyncio.get_event_loop().call_soon(lambda: asyncio.ensure_future(_windowed_pipeline_run()))
+
+    return {
+        "status": "accepted",
+        "signal_id": scored.id,
+        "anomaly_score": scored.anomaly_score,
+        "is_anomalous": _is_anomalous(scored),
+    }
+
+
+async def _windowed_pipeline_run() -> None:
+    """
+    Run the full correlation pipeline over all stored signals.
+    Resets the pending flag afterward.
+    """
+    global _last_pipeline_run_ts, _pending_pipeline
+    try:
+        _run_pipeline(list(_signals.values()))
+        _last_pipeline_run_ts = time.time()
+    except Exception:
+        logger.exception("Windowed pipeline run failed")
+    finally:
+        _pending_pipeline = False
+
+
+# ---------------------------------------------------------------------------
+# SSE background consumer (launched by lifespan)
+# ---------------------------------------------------------------------------
+
+async def _consume_stream(stream_name: str, url: str) -> None:
+    """
+    Long-running background task: consume one SSE stream and feed each
+    signal into the pipeline. Handles reconnect with Last-Event-ID.
+    """
+    status_entry = _stream_status[stream_name]
+    last_id = None
+
+    while True:
+        try:
+            status_entry["connected"] = True
+            async for event_id, signal in consume_sse_stream(
+                url,
+                source_type=stream_name,
+                last_event_id=last_id,
+                max_reconnects=-1,   # indefinite reconnects
+            ):
+                last_id = event_id
+                status_entry["last_event_id"] = event_id
+                status_entry["events_received"] += 1
+                try:
+                    await _ingest_signal(signal)
+                except Exception:
+                    logger.exception(
+                        "Pipeline error processing signal from %s (event %s)",
+                        stream_name, event_id,
+                    )
+        except asyncio.CancelledError:
+            logger.info("SSE consumer for %s cancelled", stream_name)
+            status_entry["connected"] = False
+            return
+        except Exception as exc:
+            status_entry["connected"] = False
+            status_entry["last_error"] = str(exc)
+            logger.warning(
+                "SSE consumer for %s crashed: %s — restarting in 5s", stream_name, exc
+            )
+            await asyncio.sleep(5)
+
+
+# ---------------------------------------------------------------------------
+# FastAPI lifespan — starts stream tasks, cleans up on shutdown
+# ---------------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start SSE consumer tasks when the app starts; cancel on shutdown."""
+    for name, url in SIMULATOR_STREAMS.items():
+        task = asyncio.create_task(_consume_stream(name, url), name=f"sse-{name}")
+        _stream_tasks.append(task)
+        logger.info("Started SSE consumer task for %s → %s", name, url)
+
+    yield
+
+    logger.info("Shutting down SSE consumer tasks...")
+    for task in _stream_tasks:
+        task.cancel()
+    await asyncio.gather(*_stream_tasks, return_exceptions=True)
+
+
+# ---------------------------------------------------------------------------
+# FastAPI app
+# ---------------------------------------------------------------------------
+
+app = FastAPI(
+    title="Ensylon AIOps",
+    description="Intelligent incident correlation and ticket drafting — HTML §7",
+    version="0.3.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ---------------------------------------------------------------------------
@@ -277,20 +449,12 @@ def _run_pipeline(signals: list[Signal]) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 @app.post("/api/signals", status_code=status.HTTP_201_CREATED)
-def ingest_signal(signal: Signal) -> dict:
+async def ingest_signal_endpoint(signal: Signal) -> dict:
     """
-    Ingest a single normalised Signal.
-    Runs C2 anomaly detection immediately and stores the scored signal.
-    Returns whether the signal is anomalous and its score.
+    Ingest a single pre-normalised Signal (e.g. from Member 1's ingestion layer).
+    Runs C2 detection immediately. Schedules a windowed correlation run.
     """
-    scored = _detect_and_score(signal)
-    _signals[scored.id] = scored
-    return {
-        "status": "accepted",
-        "signal_id": scored.id,
-        "anomaly_score": scored.anomaly_score,
-        "is_anomalous": _is_anomalous(scored),
-    }
+    return await _ingest_signal(signal)
 
 
 @app.get("/api/signals")
@@ -301,7 +465,6 @@ def list_signals() -> list[dict]:
 
 @app.get("/api/signals/{signal_id}")
 def get_signal(signal_id: str) -> dict:
-    """Fetch a specific ingested signal by ID."""
     s = _signals.get(signal_id)
     if not s:
         raise HTTPException(status_code=404, detail="Signal not found")
@@ -309,28 +472,23 @@ def get_signal(signal_id: str) -> dict:
 
 
 @app.post("/api/signals/batch", status_code=status.HTTP_201_CREATED)
-def ingest_batch(signals: list[Signal]) -> dict:
+async def ingest_batch(signals: list[Signal]) -> dict:
     """
-    Load a batch of signals, run C2 detection on each, then run the full pipeline.
-    Returns accepted incidents.
+    Batch-ingest signals and immediately run the full correlation pipeline.
+    Use this for replay / testing; live data goes through SSE streams.
     """
-    scored_signals = []
     for s in signals:
         scored = _detect_and_score(s)
         _signals[scored.id] = scored
-        scored_signals.append(scored)
 
     incidents = _run_pipeline(list(_signals.values()))
     return {
         "status": "processed",
-        "signals_ingested": len(scored_signals),
-        "anomalous_count": sum(1 for s in scored_signals if _is_anomalous(s)),
+        "signals_ingested": len(signals),
+        "anomalous_count": sum(1 for s in signals if _is_anomalous(_detect_and_score(s))),
         "incidents_created": len(incidents),
         "incidents": incidents,
     }
-
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -393,7 +551,7 @@ def get_fingerprint(incident_id: str) -> dict:
 # ---------------------------------------------------------------------------
 
 class DraftRequest(BaseModel):
-    pass  # incident data comes from stored incident
+    pass
 
 
 @app.post("/api/incidents/{incident_id}/draft", status_code=status.HTTP_201_CREATED)
@@ -422,7 +580,7 @@ def get_draft(incident_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# C5 — Review endpoint (ticket must NOT be published without explicit approval)
+# C5 — Review endpoint
 # ---------------------------------------------------------------------------
 
 class ReviewRequest(BaseModel):
@@ -432,7 +590,7 @@ class ReviewRequest(BaseModel):
 
 @app.post("/api/incidents/{incident_id}/review")
 def review_incident(incident_id: str, body: ReviewRequest) -> dict:
-    """Apply human review decision (HTML §C5 — human-in-the-loop gate)."""
+    """Apply human review decision (HTML §C5)."""
     draft = _drafts.get(incident_id)
     if not draft:
         raise HTTPException(status_code=404, detail="No draft to review — POST /draft first")
@@ -451,8 +609,8 @@ def review_incident(incident_id: str, body: ReviewRequest) -> dict:
 @app.post("/api/jira/tickets", status_code=status.HTTP_201_CREATED)
 def publish_jira(incident_id: str) -> dict:
     """
-    Publish to Mock Jira. BLOCKED unless the draft has been explicitly approved.
-    Ticket is written to output/tickets/ only after human approval (HTML §C5).
+    Publish to Mock Jira.
+    BLOCKED unless the draft has been explicitly approved (HTML §C5).
     """
     draft = _drafts.get(incident_id)
     if not draft:
@@ -466,7 +624,6 @@ def publish_jira(incident_id: str) -> dict:
 
 @app.get("/api/jira/tickets")
 def list_jira_tickets() -> list[dict]:
-    """List all published tickets in Mock Jira."""
     return get_mock_tickets()
 
 
@@ -478,13 +635,11 @@ def list_jira_tickets() -> list[dict]:
 def health() -> dict:
     return {
         "status": "ok",
-        "signals": len(_signals),
+        "signals_total": len(_signals),
         "anomalous_signals": sum(1 for s in _signals.values() if _is_anomalous(s)),
         "incidents": len(_incidents),
-        "pending_reviews": sum(
-            1 for d in _drafts.values()
-            if not is_approved(d)
-        ),
+        "pending_reviews": sum(1 for d in _drafts.values() if not is_approved(d)),
+        "streams": _stream_status,
     }
 
 
@@ -493,7 +648,21 @@ def get_config() -> dict:
     return load_config()
 
 
+@app.get("/api/streams/status")
+def streams_status() -> dict:
+    """
+    SSE stream connection status — consumed by the frontend (Member 3).
 
+    Response schema:
+    {
+      "streams": {
+        "logs":       { "connected": bool, "last_event_id": str|null, "events_received": int, "last_error": str|null },
+        "grafana":    { ... },
+        "cloudwatch": { ... }
+      }
+    }
+    """
+    return {"streams": _stream_status}
 
 
 # ---------------------------------------------------------------------------
