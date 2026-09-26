@@ -1,6 +1,5 @@
 import React from 'react';
 import { Play, RefreshCw, Zap, Server, Cpu, ShieldCheck, User } from 'lucide-react';
-import { Play, RefreshCw, Server, Cpu, ShieldCheck } from 'lucide-react';
 
 export default function Header({
   health,
