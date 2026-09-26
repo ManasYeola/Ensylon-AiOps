@@ -188,6 +188,7 @@ export default function TicketReview({
           padding: '30px',
           textAlign: 'center',
           color: 'var(--text-secondary)',
+          borderRadius: 'var(--radius-xl)',
         }}
       >
         Select an incident to view or draft a ticket for human review.
@@ -234,7 +235,7 @@ export default function TicketReview({
       {!draft && loading && (
         <div
           className="glass-card"
-          style={{ padding: '50px 30px', textAlign: 'center' }}
+          style={{ padding: '50px 30px', textAlign: 'center', borderRadius: 'var(--radius-xl)' }}
         >
           <RefreshCw
             size={36}
@@ -266,7 +267,7 @@ export default function TicketReview({
       {!draft && !loading && (
         <div
           className="glass-card"
-          style={{ padding: '40px 30px', textAlign: 'center' }}
+          style={{ padding: '40px 30px', textAlign: 'center', borderRadius: 'var(--radius-xl)' }}
         >
           <AlertOctagon
             size={36}
@@ -299,7 +300,7 @@ export default function TicketReview({
 
       {/* Render draft once generated */}
       {draft && (
-        <div className="glass-card" style={{ padding: '24px' }}>
+        <div className="glass-card" style={{ padding: '24px', borderRadius: 'var(--radius-xl)' }}>
           {/* Header */}
           <div
             style={{
@@ -351,8 +352,8 @@ export default function TicketReview({
                       fontSize: '0.72rem',
                       color: 'var(--text-secondary)',
                       background: 'rgba(61, 70, 84, 0.08)',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
+                      padding: '3px 10px',
+                      borderRadius: 'var(--radius-full)',
                     }}
                   >
                     Reviewer: {draft.edited_by}
@@ -399,7 +400,7 @@ export default function TicketReview({
                     padding: '8px 14px',
                     background: 'rgba(16, 185, 129, 0.12)',
                     border: '1px solid rgba(16, 185, 129, 0.3)',
-                    borderRadius: 'var(--radius-md)',
+                    borderRadius: 'var(--radius-lg)',
                   }}
                 >
                   <CheckCircle size={18} color="var(--green)" />
@@ -481,10 +482,10 @@ export default function TicketReview({
               alignItems: 'center',
               flexWrap: 'wrap',
               gap: '16px',
-              padding: '10px 14px',
+              padding: '12px 18px',
               background: '#EAE6DB',
               border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-md)',
+              borderRadius: 'var(--radius-lg)',
               marginBottom: '20px',
               fontSize: '0.8rem',
             }}
@@ -583,10 +584,10 @@ export default function TicketReview({
                     onChange={(e) => setEditedTitle(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '8px 12px',
+                      padding: '8px 14px',
                       background: '#FFFFFF',
                       border: '1px solid rgba(61, 70, 84, 0.2)',
-                      borderRadius: 'var(--radius-sm)',
+                      borderRadius: 'var(--radius-md)',
                       color: 'var(--text-primary)',
                       fontFamily: 'var(--font-sans)',
                       fontSize: '0.9rem',
@@ -611,10 +612,10 @@ export default function TicketReview({
                     onChange={(e) => setEditedSummary(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '8px 12px',
+                      padding: '10px 14px',
                       background: '#FFFFFF',
                       border: '1px solid rgba(61, 70, 84, 0.2)',
-                      borderRadius: 'var(--radius-sm)',
+                      borderRadius: 'var(--radius-md)',
                       color: 'var(--text-primary)',
                       fontFamily: 'var(--font-sans)',
                       fontSize: '0.88rem',
@@ -653,7 +654,7 @@ export default function TicketReview({
               style={{
                 background: '#F2EFE5',
                 border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-md)',
+                borderRadius: 'var(--radius-lg)',
                 padding: '16px',
                 marginBottom: '20px',
               }}
@@ -692,10 +693,10 @@ export default function TicketReview({
                     className="font-mono"
                     style={{
                       fontSize: '0.78rem',
-                      padding: '6px 10px',
+                      padding: '8px 12px',
                       background: '#FAF8F0',
                       borderLeft: '3px solid #D6A62C',
-                      borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
+                      borderRadius: '0 var(--radius-md) var(--radius-md) 0',
                       color: 'var(--text-primary)',
                     }}
                   >
@@ -720,8 +721,8 @@ export default function TicketReview({
               style={{
                 background: 'rgba(214, 166, 44, 0.06)',
                 border: '1px solid rgba(214, 166, 44, 0.25)',
-                borderRadius: 'var(--radius-md)',
-                padding: '16px',
+                borderRadius: 'var(--radius-lg)',
+                padding: '18px',
               }}
             >
               <div
@@ -779,8 +780,8 @@ export default function TicketReview({
               style={{
                 background: 'rgba(61, 70, 84, 0.05)',
                 border: '1px solid rgba(61, 70, 84, 0.18)',
-                borderRadius: 'var(--radius-md)',
-                padding: '16px',
+                borderRadius: 'var(--radius-lg)',
+                padding: '18px',
               }}
             >
               <div
@@ -804,10 +805,10 @@ export default function TicketReview({
               </div>
               <div
                 style={{
-                  padding: '6px 10px',
+                  padding: '6px 12px',
                   background: 'rgba(214, 166, 44, 0.15)',
                   border: '1px solid rgba(214, 166, 44, 0.35)',
-                  borderRadius: 'var(--radius-sm)',
+                  borderRadius: 'var(--radius-md)',
                   fontSize: '0.72rem',
                   color: '#785A00',
                   fontWeight: 600,
@@ -826,7 +827,7 @@ export default function TicketReview({
                     padding: '8px 12px',
                     background: '#FFFFFF',
                     border: '1px solid rgba(61, 70, 84, 0.2)',
-                    borderRadius: 'var(--radius-sm)',
+                    borderRadius: 'var(--radius-md)',
                     color: 'var(--text-primary)',
                     fontFamily: 'var(--font-sans)',
                     fontSize: '0.82rem',
@@ -851,8 +852,8 @@ export default function TicketReview({
             style={{
               background: '#F2EFE5',
               border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-md)',
-              padding: '16px',
+              borderRadius: 'var(--radius-lg)',
+              padding: '18px',
               marginBottom: '24px',
             }}
           >
@@ -886,7 +887,7 @@ export default function TicketReview({
                     padding: '8px 12px',
                     background: '#FFFFFF',
                     border: '1px solid rgba(61, 70, 84, 0.2)',
-                    borderRadius: 'var(--radius-sm)',
+                    borderRadius: 'var(--radius-md)',
                     color: 'var(--text-primary)',
                     fontFamily: 'var(--font-sans)',
                     fontSize: '0.82rem',
@@ -1003,7 +1004,7 @@ export default function TicketReview({
               width: '100%',
               maxWidth: '520px',
               padding: '24px',
-              borderRadius: 'var(--radius-lg)',
+              borderRadius: 'var(--radius-xl)',
               boxShadow: 'var(--shadow-xl)',
               background: '#FAF8F0',
               border: '1px solid rgba(61, 70, 84, 0.18)',
@@ -1060,7 +1061,7 @@ export default function TicketReview({
                     fontSize: '0.82rem',
                     background: '#FFFFFF',
                     border: '1px solid rgba(61, 70, 84, 0.2)',
-                    borderRadius: 'var(--radius-sm)',
+                    borderRadius: 'var(--radius-md)',
                     color: 'var(--text-primary)',
                   }}
                 />
@@ -1082,7 +1083,7 @@ export default function TicketReview({
                     fontSize: '0.82rem',
                     background: '#FFFFFF',
                     border: '1px solid rgba(61, 70, 84, 0.2)',
-                    borderRadius: 'var(--radius-sm)',
+                    borderRadius: 'var(--radius-md)',
                     color: 'var(--text-primary)',
                   }}
                 />
@@ -1113,7 +1114,7 @@ export default function TicketReview({
                     fontSize: '0.82rem',
                     background: '#FFFFFF',
                     border: '1px solid rgba(61, 70, 84, 0.2)',
-                    borderRadius: 'var(--radius-sm)',
+                    borderRadius: 'var(--radius-md)',
                     color: 'var(--text-primary)',
                   }}
                 />
@@ -1136,7 +1137,7 @@ export default function TicketReview({
                       fontSize: '0.82rem',
                       background: '#FFFFFF',
                       border: '1px solid rgba(61, 70, 84, 0.2)',
-                      borderRadius: 'var(--radius-sm)',
+                      borderRadius: 'var(--radius-md)',
                       color: 'var(--text-primary)',
                       textTransform: 'uppercase',
                     }}
@@ -1159,7 +1160,7 @@ export default function TicketReview({
                       fontSize: '0.82rem',
                       background: '#FFFFFF',
                       border: '1px solid rgba(61, 70, 84, 0.2)',
-                      borderRadius: 'var(--radius-sm)',
+                      borderRadius: 'var(--radius-md)',
                       color: 'var(--text-primary)',
                     }}
                   />

@@ -613,7 +613,7 @@ export default function EvidenceGraph({ incident, graphData }) {
 
   if (!graphData) {
     return (
-      <div className="glass-card" style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+      <div className="glass-card" style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-secondary)', borderRadius: 'var(--radius-xl)' }}>
         <Network size={36} color="var(--cyan)" style={{ margin: '0 auto 16px', display: 'block', opacity: 0.8 }} />
         <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Loading Evidence Graph...</h4>
         <p style={{ fontSize: '0.82rem', marginTop: '6px' }}>Fetching correlated signal nodes and dimensional edges</p>
@@ -623,7 +623,7 @@ export default function EvidenceGraph({ incident, graphData }) {
 
   if (!graphData.nodes || graphData.nodes.length === 0) {
     return (
-      <div className="glass-card" style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+      <div className="glass-card" style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-secondary)', borderRadius: 'var(--radius-xl)' }}>
         <Network size={36} color="var(--text-muted)" style={{ margin: '0 auto 16px', display: 'block' }} />
         <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>No Signal Nodes in Cluster</h4>
         <p style={{ fontSize: '0.82rem', marginTop: '6px' }}>This incident does not contain active anomalous signal nodes.</p>
@@ -634,7 +634,7 @@ export default function EvidenceGraph({ incident, graphData }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '16px' }}>
       {/* Canvas Viewport */}
-      <div className="glass-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column' }}>
+      <div className="glass-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', borderRadius: 'var(--radius-xl)' }}>
         {/* Clean Controls Toolbar (Cutoff removed) */}
         <div
           style={{
@@ -673,7 +673,7 @@ export default function EvidenceGraph({ incident, graphData }) {
                 display: 'flex',
                 background: '#EAE6DB',
                 padding: '3px',
-                borderRadius: 'var(--radius-sm)',
+                borderRadius: 'var(--radius-full)',
                 border: '1px solid var(--border-subtle)',
               }}
             >
@@ -681,11 +681,11 @@ export default function EvidenceGraph({ incident, graphData }) {
                 onClick={() => setViewMode('backbone')}
                 title="Maximum Spanning Tree: clean correlation backbone with zero hairball cycles"
                 style={{
-                  padding: '4px 10px',
+                  padding: '5px 12px',
                   fontSize: '0.72rem',
                   fontWeight: 600,
                   border: 'none',
-                  borderRadius: 'var(--radius-xs)',
+                  borderRadius: 'var(--radius-full)',
                   cursor: 'pointer',
                   background: viewMode === 'backbone' ? '#FAF8F0' : 'transparent',
                   color: viewMode === 'backbone' ? '#252525' : '#565F6E',
@@ -702,11 +702,11 @@ export default function EvidenceGraph({ incident, graphData }) {
                 onClick={() => setViewMode('top2')}
                 title="Top 2 strongest connections per node"
                 style={{
-                  padding: '4px 10px',
+                  padding: '5px 12px',
                   fontSize: '0.72rem',
                   fontWeight: 600,
                   border: 'none',
-                  borderRadius: 'var(--radius-xs)',
+                  borderRadius: 'var(--radius-full)',
                   cursor: 'pointer',
                   background: viewMode === 'top2' ? '#FAF8F0' : 'transparent',
                   color: viewMode === 'top2' ? '#252525' : '#565F6E',
@@ -719,11 +719,11 @@ export default function EvidenceGraph({ incident, graphData }) {
                 onClick={() => setViewMode('all')}
                 title="Show all strong correlation edges"
                 style={{
-                  padding: '4px 10px',
+                  padding: '5px 12px',
                   fontSize: '0.72rem',
                   fontWeight: 600,
                   border: 'none',
-                  borderRadius: 'var(--radius-xs)',
+                  borderRadius: 'var(--radius-full)',
                   cursor: 'pointer',
                   background: viewMode === 'all' ? '#FAF8F0' : 'transparent',
                   color: viewMode === 'all' ? '#252525' : '#565F6E',
@@ -742,13 +742,13 @@ export default function EvidenceGraph({ incident, graphData }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '5px',
-                padding: '4px 8px',
+                padding: '5px 12px',
                 fontSize: '0.72rem',
                 fontWeight: 600,
                 background: weightMode === 'all' ? 'rgba(214, 166, 44, 0.15)' : '#EAE6DB',
                 border: weightMode === 'all' ? '1px solid #D6A62C' : '1px solid var(--border-subtle)',
                 color: weightMode === 'all' ? '#785A00' : '#565F6E',
-                borderRadius: 'var(--radius-sm)',
+                borderRadius: 'var(--radius-full)',
                 cursor: 'pointer',
               }}
             >
@@ -759,7 +759,7 @@ export default function EvidenceGraph({ incident, graphData }) {
         </div>
 
         {/* Stable Static Canvas Viewport */}
-        <div style={{ flex: 1, minHeight: '440px', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ flex: 1, minHeight: '440px', position: 'relative', overflow: 'hidden', borderRadius: 'var(--radius-lg)' }}>
           <canvas
             ref={canvasRef}
             onMouseDown={handleMouseDown}
@@ -770,7 +770,7 @@ export default function EvidenceGraph({ incident, graphData }) {
               width: '100%',
               height: '100%',
               display: 'block',
-              borderRadius: 'var(--radius-md)',
+              borderRadius: 'var(--radius-lg)',
               background: '#FAF8F0',
               border: '1px solid var(--border-subtle)',
             }}
@@ -787,7 +787,7 @@ export default function EvidenceGraph({ incident, graphData }) {
                 background: '#FAF8F0',
                 border: '1px solid var(--border-medium)',
                 boxShadow: 'var(--shadow-md)',
-                borderRadius: 'var(--radius-sm)',
+                borderRadius: 'var(--radius-md)',
                 padding: '8px 12px',
                 fontSize: '0.75rem',
                 zIndex: 100,
@@ -829,9 +829,9 @@ export default function EvidenceGraph({ incident, graphData }) {
                 background: '#FAF8F0',
                 border: '1px solid var(--border-subtle)',
                 color: '#252525',
-                width: '28px',
-                height: '28px',
-                borderRadius: 'var(--radius-xs)',
+                width: '30px',
+                height: '30px',
+                borderRadius: 'var(--radius-full)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -848,9 +848,9 @@ export default function EvidenceGraph({ incident, graphData }) {
                 background: '#FAF8F0',
                 border: '1px solid var(--border-subtle)',
                 color: '#252525',
-                width: '28px',
-                height: '28px',
-                borderRadius: 'var(--radius-xs)',
+                width: '30px',
+                height: '30px',
+                borderRadius: 'var(--radius-full)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -867,9 +867,9 @@ export default function EvidenceGraph({ incident, graphData }) {
                 background: '#FAF8F0',
                 border: '1px solid var(--border-subtle)',
                 color: '#252525',
-                width: '28px',
-                height: '28px',
-                borderRadius: 'var(--radius-xs)',
+                width: '30px',
+                height: '30px',
+                borderRadius: 'var(--radius-full)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -889,8 +889,8 @@ export default function EvidenceGraph({ incident, graphData }) {
               left: '12px',
               background: 'rgba(250, 248, 240, 0.95)',
               border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '6px 12px',
+              borderRadius: 'var(--radius-full)',
+              padding: '6px 14px',
               display: 'flex',
               flexWrap: 'wrap',
               alignItems: 'center',
@@ -903,7 +903,7 @@ export default function EvidenceGraph({ incident, graphData }) {
           >
             {/* Distinct Strong Edge Color Legend Item */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '16px', height: '3px', background: STRONG_EDGE.stroke, borderRadius: '2px' }} />
+              <div style={{ width: '16px', height: '4px', background: STRONG_EDGE.stroke, borderRadius: 'var(--radius-full)' }} />
               <strong style={{ color: '#785A00' }}>Strong Edge</strong>
             </div>
 
@@ -928,6 +928,7 @@ export default function EvidenceGraph({ incident, graphData }) {
           gap: '14px',
           maxHeight: '620px',
           overflowY: 'auto',
+          borderRadius: 'var(--radius-xl)',
         }}
       >
         {/* Panel Header */}
@@ -961,7 +962,7 @@ export default function EvidenceGraph({ incident, graphData }) {
           <Search
             size={13}
             color="var(--text-muted)"
-            style={{ position: 'absolute', left: '10px', top: '9px' }}
+            style={{ position: 'absolute', left: '12px', top: '10px' }}
           />
           <input
             type="text"
@@ -970,11 +971,11 @@ export default function EvidenceGraph({ incident, graphData }) {
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
               width: '100%',
-              padding: '6px 10px 6px 30px',
+              padding: '7px 12px 7px 34px',
               fontSize: '0.75rem',
               background: '#FFFFFF',
               border: '1px solid rgba(61, 70, 84, 0.2)',
-              borderRadius: 'var(--radius-sm)',
+              borderRadius: 'var(--radius-full)',
               color: 'var(--text-primary)',
             }}
           />
@@ -985,9 +986,9 @@ export default function EvidenceGraph({ incident, graphData }) {
             {/* Selected Node Details Card */}
             <div
               style={{
-                padding: '12px',
+                padding: '14px',
                 background: '#F2EFE5',
-                borderRadius: 'var(--radius-sm)',
+                borderRadius: 'var(--radius-lg)',
                 border: '1px solid var(--border-subtle)',
               }}
             >
@@ -1029,9 +1030,9 @@ export default function EvidenceGraph({ incident, graphData }) {
                 <div
                   style={{
                     marginTop: '10px',
-                    padding: '8px 10px',
+                    padding: '8px 12px',
                     background: '#FAF8F0',
-                    borderRadius: 'var(--radius-xs)',
+                    borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--border-subtle)',
                     fontSize: '0.72rem',
                     color: 'var(--text-primary)',
@@ -1075,10 +1076,10 @@ export default function EvidenceGraph({ incident, graphData }) {
                         key={idx}
                         onClick={() => setSelectedNodeId(edge.targetId)}
                         style={{
-                          padding: '10px',
+                          padding: '10px 12px',
                           background: '#F2EFE5',
                           border: '1px solid var(--border-subtle)',
-                          borderRadius: 'var(--radius-sm)',
+                          borderRadius: 'var(--radius-md)',
                           cursor: 'pointer',
                           transition: 'border-color 0.15s ease',
                         }}
@@ -1126,8 +1127,8 @@ export default function EvidenceGraph({ incident, graphData }) {
                             fontSize: '0.65rem',
                             color: 'var(--text-secondary)',
                             background: '#FAF8F0',
-                            padding: '4px 6px',
-                            borderRadius: 'var(--radius-xs)',
+                            padding: '5px 8px',
+                            borderRadius: 'var(--radius-md)',
                           }}
                         >
                           <span>Temporal: {(edge.temporal ?? 0).toFixed(2)}</span>
@@ -1148,16 +1149,16 @@ export default function EvidenceGraph({ incident, graphData }) {
                 <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
                   All Nodes in Cluster ({filteredNodesList.length})
                 </span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '120px', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '120px', overflowY: 'auto' }}>
                   {filteredNodesList.map((n) => (
                     <button
                       key={n.id}
                       onClick={() => setSelectedNodeId(n.id)}
                       style={{
-                        padding: '3px 7px',
+                        padding: '4px 10px',
                         fontSize: '0.68rem',
                         fontFamily: 'monospace',
-                        borderRadius: 'var(--radius-xs)',
+                        borderRadius: 'var(--radius-full)',
                         border: selectedNodeId === n.id ? '1px solid #D6A62C' : '1px solid var(--border-subtle)',
                         background: selectedNodeId === n.id ? 'rgba(214, 166, 44, 0.16)' : '#EAE6DB',
                         color: selectedNodeId === n.id ? '#785A00' : 'var(--text-secondary)',
