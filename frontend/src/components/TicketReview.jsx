@@ -35,6 +35,7 @@ export default function TicketReview({
   const [editedSummary, setEditedSummary] = useState('');
   const [editedRootCause, setEditedRootCause] = useState('');
   const [editedSteps, setEditedSteps] = useState('');
+  const [draftsCache, setDraftsCache] = useState({});
 
   // Jira Cloud Integration Config
   const [jiraConfig, setJiraConfig] = useState(null);
@@ -64,47 +65,53 @@ export default function TicketReview({
       .catch(() => {});
   }, []);
 
-  // Fetch or auto-load draft for the selected incident
-  useEffect(() => {
+  // Auto-load or auto-generate draft for the selected incident (cached once)
+  const loadDraft = async () => {
     if (!incident) return;
+
+    // Fast-path: return client-side cached draft immediately without any network or LLM calls
+    if (draftsCache[incident.id]) {
+      const cached = draftsCache[incident.id];
+      setDraft(cached);
+      setEditedTitle(cached.title || '');
+      setEditedSummary(cached.summary || '');
+      setEditedRootCause(cached.suspected_root_cause || '');
+      setEditedSteps((cached.investigation_steps || []).join('\n'));
+      setError(null);
+      setIsEditing(false);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     setError(null);
     setIsEditing(false);
 
-    const loadDraft = async () => {
-      try {
-        const existing = await api.getDraft(incident.id);
-        setDraft(existing);
-        setEditedTitle(existing.title || '');
-        setEditedSummary(existing.summary || '');
-        setEditedRootCause(existing.suspected_root_cause || '');
-        setEditedSteps((existing.investigation_steps || []).join('\n'));
-      } catch (e) {
-        // No draft exists yet, set to null
-        setDraft(null);
-      }
-    };
-
-    loadDraft();
-  }, [incident]);
-
-  // Generate draft via Claude / LLM
-  const handleGenerateDraft = async () => {
-    if (!incident) return;
-    setLoading(true);
-    setError(null);
     try {
-      const newDraft = await api.createDraft(incident.id);
-      setDraft(newDraft);
-      setEditedTitle(newDraft.title || '');
-      setEditedSummary(newDraft.summary || '');
-      setEditedRootCause(newDraft.suspected_root_cause || '');
-      setEditedSteps((newDraft.investigation_steps || []).join('\n'));
+      let currentDraft;
+      try {
+        currentDraft = await api.getDraft(incident.id);
+      } catch {
+        // If draft not yet generated, auto-synthesize it on demand (backed by backend singleton)
+        currentDraft = await api.createDraft(incident.id);
+      }
+      setDraft(currentDraft);
+      setDraftsCache((prev) => ({ ...prev, [incident.id]: currentDraft }));
+      setEditedTitle(currentDraft.title || '');
+      setEditedSummary(currentDraft.summary || '');
+      setEditedRootCause(currentDraft.suspected_root_cause || '');
+      setEditedSteps((currentDraft.investigation_steps || []).join('\n'));
     } catch (err) {
-      setError(`Failed to generate draft: ${err.message}`);
+      setError(`Failed to auto-generate draft: ${err.message}`);
+      setDraft(null);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadDraft();
+  }, [incident?.id]);
 
   // Human review action
   const handleReview = async (action) => {
@@ -126,6 +133,7 @@ export default function TicketReview({
       }
       const reviewed = await api.submitReview(incident.id, action, payload);
       setDraft(reviewed);
+      setDraftsCache((prev) => ({ ...prev, [incident.id]: reviewed }));
       setIsEditing(false);
     } catch (err) {
       setError(`Review failed: ${err.message}`);
@@ -222,55 +230,75 @@ export default function TicketReview({
         </div>
       )}
 
-      {/* Draft generator banner if not generated yet */}
-      {!draft ? (
+      {/* Loading state: auto-synthesizing draft */}
+      {!draft && loading && (
         <div
           className="glass-card"
-          style={{ padding: '40px', textAlign: 'center' }}
+          style={{ padding: '50px 30px', textAlign: 'center' }}
         >
-          <Sparkles
+          <RefreshCw
             size={36}
             color="var(--purple)"
-            style={{ margin: '0 auto 12px' }}
+            className="animate-spin"
+            style={{ margin: '0 auto 16px' }}
           />
           <h3 style={{ fontSize: '1.15rem', marginBottom: '8px' }}>
-            Generate Incident Ticket Draft with Claude
+            Auto-Synthesizing Incident Ticket with Claude...
           </h3>
           <p
             style={{
               fontSize: '0.85rem',
               color: 'var(--text-secondary)',
-              maxWidth: '520px',
-              margin: '0 auto 20px',
+              maxWidth: '500px',
+              margin: '0 auto',
               lineHeight: 1.5,
             }}
           >
-            Claude analyzes the{' '}
+            Claude is analyzing the{' '}
             <strong>{incident.signal_ids?.length || 0}</strong> correlated
-            telemetry signals and topological causal chains to produce a
-            structured, evidence-grounded draft with strict separation of facts
-            and unverified hypotheses.
+            telemetry signals and topological causal chains to produce the
+            structured incident draft for your review.
+          </p>
+        </div>
+      )}
+
+      {/* Error state if auto-generation failed */}
+      {!draft && !loading && (
+        <div
+          className="glass-card"
+          style={{ padding: '40px 30px', textAlign: 'center' }}
+        >
+          <AlertOctagon
+            size={36}
+            color="var(--rose)"
+            style={{ margin: '0 auto 12px' }}
+          />
+          <h3 style={{ fontSize: '1.1rem', marginBottom: '8px' }}>
+            Draft Synthesis Failed
+          </h3>
+          <p
+            style={{
+              fontSize: '0.85rem',
+              color: 'var(--text-secondary)',
+              maxWidth: '480px',
+              margin: '0 auto 20px',
+            }}
+          >
+            {error || 'Unable to retrieve or generate incident ticket draft.'}
           </p>
           <button
-            className="btn btn-primary"
-            onClick={handleGenerateDraft}
-            disabled={loading}
-            style={{ padding: '10px 24px', fontSize: '0.9rem' }}
+            className="btn btn-secondary"
+            onClick={loadDraft}
+            style={{ padding: '8px 20px', fontSize: '0.85rem' }}
           >
-            {loading ? (
-              <>
-                <RefreshCw size={16} className="animate-spin" />
-                <span>Synthesizing with Claude...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles size={16} />
-                <span>Generate Ticket Draft with Claude</span>
-              </>
-            )}
+            <RefreshCw size={14} />
+            <span>Retry Auto-Synthesis</span>
           </button>
         </div>
-      ) : (
+      )}
+
+      {/* Render draft once generated */}
+      {draft && (
         <div className="glass-card" style={{ padding: '24px' }}>
           {/* Header */}
           <div

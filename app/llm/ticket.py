@@ -32,63 +32,25 @@ from app.models.ticket import TicketDraft
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Provider configuration
+# Provider configuration — Anthropic Claude (PS §2 #8 / §7 C5)
 # ---------------------------------------------------------------------------
 
-# Provider → (base_url, default_model, api_key_env_var)
-# anthropic uses its own SDK so base_url is a sentinel here.
-_PROVIDERS: dict[str, tuple[str | None, str, str]] = {
-    "anthropic": (
-        "__anthropic__",           # sentinel — handled separately
-        "claude-sonnet-4-6",  # Claude Sonnet
-        "ANTHROPIC_API_KEY",
-    ),
-    "groq": (
-        "https://api.groq.com/openai/v1",
-        "groq/compound-mini",
-        "GROQ_API_KEY",
-    ),
-    "gemini": (
-        "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "gemini-2.0-flash",
-        "GEMINI_API_KEY",
-    ),
-    "openai": (
-        None,
-        "gpt-4o-mini",
-        "OPENAI_API_KEY",
-    ),
-    "mock": (
-        None,
-        "mock",
-        "",
-    ),
-}
+DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6"
 
 
-def _resolve_provider() -> tuple[str, str | None, str, str]:
+def _resolve_provider() -> tuple[str, str]:
     """
-    Resolve provider from LLM_PROVIDER env var.
-    Returns (provider_name, base_url, model, api_key).
-    Raises ValueError if provider is unknown or if required API key is missing.
+    Resolve Anthropic Claude credentials.
+    Throws ValueError immediately if ANTHROPIC_API_KEY is not set.
     """
-    provider = os.getenv("LLM_PROVIDER", "anthropic").lower().strip()
-
-    if provider not in _PROVIDERS:
+    api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
         raise ValueError(
-            f"Unknown LLM_PROVIDER '{provider}'. Supported providers: {list(_PROVIDERS.keys())}"
+            "ANTHROPIC_API_KEY environment variable is not set. "
+            "Ticket drafting requires valid Anthropic Claude API credentials."
         )
-
-    base_url, default_model, key_env = _PROVIDERS[provider]
-    api_key = os.getenv(key_env, "") if key_env else ""
-    model = os.getenv("LLM_MODEL", "").strip() or default_model
-
-    if provider != "mock" and not api_key:
-        raise ValueError(
-            f"LLM_PROVIDER='{provider}' requires environment variable '{key_env}', but it is not set."
-        )
-
-    return provider, base_url, model, api_key
+    model = os.getenv("LLM_MODEL", "").strip() or DEFAULT_CLAUDE_MODEL
+    return model, api_key
 
 
 # ---------------------------------------------------------------------------
@@ -223,96 +185,12 @@ def _call_anthropic(evidence: dict, model: str, api_key: str) -> dict:
 
 def _call_llm(evidence: dict) -> dict:
     """
-    Call the configured LLM provider with the evidence package.
-    Only returns mock if explicitly configured as provider='mock'.
-    Raises on any provider errors.
+    Call Anthropic Claude API with the evidence package (PS §2 #8 / §7 C5).
+    Throws ValueError if ANTHROPIC_API_KEY is not set, or RuntimeError / API error on failure.
+    No fallback is used.
     """
-    provider, base_url, model, api_key = _resolve_provider()
-
-    if provider == "mock":
-        return _mock_llm_response(evidence)
-
-    # Anthropic uses its own SDK
-    if provider == "anthropic":
-        return _call_anthropic(evidence, model, api_key)
-
-    # All other providers: OpenAI-compatible endpoint
-    import openai
-
-    client_kwargs: dict = {"api_key": api_key}
-    if base_url and base_url != "__anthropic__":
-        client_kwargs["base_url"] = base_url
-
-    client = openai.OpenAI(**client_kwargs)
-
-    openai_system = SYSTEM_PROMPT.replace(
-        "6. You must call the `draft_incident_ticket` tool with your analysis — do not respond with plain text.",
-        "6. Output valid JSON matching this schema exactly — no markdown, no code fences:\n"
-        '{"title": "...", "summary": "...", "suspected_root_cause": "...", "investigation_steps": ["..."]}',
-    )
-
-    create_kwargs = dict(
-        model=model,
-        messages=[
-            {"role": "system", "content": openai_system},
-            {"role": "user", "content": json.dumps(evidence, indent=2, default=str)},
-        ],
-        temperature=0.1,
-    )
-
-    if provider in ("groq", "openai", "gemini"):
-        create_kwargs["response_format"] = {"type": "json_object"}
-
-    response = client.chat.completions.create(**create_kwargs)
-    raw = (response.choices[0].message.content or "").strip()
-
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-        raw = raw.strip()
-
-    return json.loads(raw)
-
-
-def _mock_llm_response(evidence: dict) -> dict:
-    """
-    Deterministic mock LLM response — no API key needed.
-    Constructs a ticket purely from evidence, zero fabrication.
-    """
-    services = ", ".join(evidence["services"])
-    sig_count = evidence["signal_count"]
-    first_service = evidence["services"][0] if evidence["services"] else "upstream service"
-
-    summary = (
-        f"{sig_count} correlated signals detected across {services} in "
-        f"the {evidence['environment']} environment. "
-        f"Severity: {evidence['severity']:.1f}/100, "
-        f"Correlation confidence: {evidence['confidence']:.2f}. "
-        f"The pattern is consistent with a cascading failure originating from an upstream service."
-    )
-
-    suspected = (
-        f"UNVERIFIED HYPOTHESIS: Based on the observed signal sequence — starting with "
-        f"{first_service} and propagating downstream — a resource exhaustion or connectivity "
-        f"failure in the upstream service is suspected. This hypothesis requires confirmation "
-        f"through log analysis and metric inspection."
-    )
-
-    steps = [
-        f"Check {first_service} health metrics and recent deployments",
-        "Review database connection pool exhaustion metrics",
-        "Inspect application logs for the burst of error templates",
-        "Verify network connectivity between impacted services",
-        "Check for recent configuration or deployment changes in the 30 minutes prior to the incident",
-    ]
-
-    return {
-        "title": f"[SEV] Cascading failure across {services}",
-        "summary": summary,
-        "suspected_root_cause": suspected,
-        "investigation_steps": steps,
-    }
+    model, api_key = _resolve_provider()
+    return _call_anthropic(evidence, model, api_key)
 
 
 # ---------------------------------------------------------------------------

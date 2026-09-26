@@ -89,6 +89,9 @@ _graphs: dict[str, EvidenceGraph] = {}
 # LLM drafts awaiting or past review
 _drafts: dict[str, TicketDraft] = {}
 
+# In-flight draft tasks: incident_id -> asyncio.Task (prevents duplicate LLM calls)
+_draft_tasks: dict[str, asyncio.Task] = {}
+
 # ── Anomaly detection state ─────────────────────────────────────────────────
 _metric_history: dict[tuple[str, str], list[float]] = defaultdict(list)
 
@@ -231,6 +234,53 @@ def _is_anomalous(signal: Signal) -> bool:
 # C3 + C4 — Correlation, Validation & Scoring
 # ---------------------------------------------------------------------------
 
+async def _get_or_create_draft(incident_id: str) -> TicketDraft:
+    """
+    Ensure exactly ONE draft is generated per incident.
+    - If already generated, returns the cached draft immediately (0 LLM calls).
+    - If currently in-flight, awaits the existing task (0 duplicate calls).
+    - If not yet started, creates an asyncio task and caches the result.
+    """
+    if incident_id in _drafts:
+        return _drafts[incident_id]
+
+    inc = _incidents.get(incident_id)
+    if not inc:
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    cluster_signals = [_signals[sid] for sid in inc.signal_ids if sid in _signals]
+    fp = _fingerprints.get(inc.fingerprint_id)
+    if not fp or not cluster_signals:
+        raise HTTPException(status_code=422, detail="Missing signals or fingerprint")
+
+    # If already in flight, wait for the existing task
+    if incident_id in _draft_tasks and not _draft_tasks[incident_id].done():
+        try:
+            return await _draft_tasks[incident_id]
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"In-flight draft generation failed: {e}",
+            )
+
+    async def _runner():
+        loop = asyncio.get_running_loop()
+        d = await loop.run_in_executor(None, generate_ticket_draft, inc, cluster_signals, fp)
+        _drafts[incident_id] = d
+        return d
+
+    task = asyncio.create_task(_runner())
+    _draft_tasks[incident_id] = task
+
+    try:
+        return await task
+    except Exception as e:
+        logger.exception("Draft generation failed for incident %s", incident_id)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Draft generation failed: {e}",
+        )
+
 def _run_pipeline(signals: list[Signal]) -> list[dict]:
     """
     Full pipeline:
@@ -337,6 +387,14 @@ def _run_pipeline(signals: list[Signal]) -> list[dict]:
         _fp_to_incident[fp_id] = inc_id
         _graphs[inc_id]       = graph
         results.append(incident.model_dump())
+
+        # Auto-generate draft once in the background if not already started/present
+        if inc_id not in _drafts and inc_id not in _draft_tasks:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(_get_or_create_draft(inc_id))
+            except RuntimeError:
+                pass
 
     return results
 
@@ -599,34 +657,16 @@ class DraftRequest(BaseModel):
 
 
 @app.post("/api/incidents/{incident_id}/draft", status_code=status.HTTP_201_CREATED)
-def create_draft(incident_id: str) -> dict:
-    """Generate LLM ticket draft from stored incident evidence (HTML §C5)."""
-    inc = _incidents.get(incident_id)
-    if not inc:
-        raise HTTPException(status_code=404, detail="Incident not found")
-
-    cluster_signals = [_signals[sid] for sid in inc.signal_ids if sid in _signals]
-    fp = _fingerprints.get(inc.fingerprint_id)
-    if not fp or not cluster_signals:
-        raise HTTPException(status_code=422, detail="Missing signals or fingerprint")
-
-    try:
-        draft = generate_ticket_draft(inc, cluster_signals, fp)
-    except Exception as e:
-        logger.exception("LLM draft generation failed for incident %s", incident_id)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"LLM draft generation failed: {e}",
-        )
-    _drafts[incident_id] = draft
+async def create_draft(incident_id: str) -> dict:
+    """Generate or retrieve LLM ticket draft for an incident (guaranteed exactly once)."""
+    draft = await _get_or_create_draft(incident_id)
     return draft.model_dump()
 
 
 @app.get("/api/incidents/{incident_id}/draft")
-def get_draft(incident_id: str) -> dict:
-    draft = _drafts.get(incident_id)
-    if not draft:
-        raise HTTPException(status_code=404, detail="No draft found — POST /draft first")
+async def get_draft(incident_id: str) -> dict:
+    """Fetch ticket draft, auto-generating if not yet cached (guaranteed exactly once)."""
+    draft = await _get_or_create_draft(incident_id)
     return draft.model_dump()
 
 
