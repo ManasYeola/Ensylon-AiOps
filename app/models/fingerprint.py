@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class IncidentFingerprint(BaseModel):
@@ -16,3 +16,10 @@ class IncidentFingerprint(BaseModel):
     temporal_pattern: list[str]  # ISO timestamps of signal burst
     severity: float
     confidence: float
+
+    @field_validator("template_ids", mode="before")
+    @classmethod
+    def coerce_template_ids(cls, v):
+        if isinstance(v, (list, set, tuple)):
+            return [str(x) for x in v]
+        return v
