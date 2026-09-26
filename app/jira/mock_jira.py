@@ -69,6 +69,7 @@ def publish_to_jira(draft: TicketDraft, incident_id: str | None = None) -> dict:
         "reviewed_by":          draft.edited_by,
         "status":               "Open",
         "published_at":         datetime.utcnow().isoformat() + "Z",
+        "output_path":          f"output/tickets/{ticket_id}.json",
     }
     _tickets.append(ticket)
 
@@ -78,6 +79,10 @@ def publish_to_jira(draft: TicketDraft, incident_id: str | None = None) -> dict:
         out_path = OUTPUT_DIR / f"{ticket_id}.json"
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(ticket, f, indent=2, ensure_ascii=False)
+        if incident_id:
+            inc_path = OUTPUT_DIR / f"{incident_id}.json"
+            with open(inc_path, "w", encoding="utf-8") as f:
+                json.dump(ticket, f, indent=2, ensure_ascii=False)
         logger.info("Ticket written to %s", out_path)
     except Exception as e:
         logger.warning("Could not write ticket to disk: %s", e)
@@ -86,5 +91,5 @@ def publish_to_jira(draft: TicketDraft, incident_id: str | None = None) -> dict:
 
 
 def get_mock_tickets() -> list[dict]:
-    """Return all mock Jira tickets published so far."""
+    """Return all Jira tickets published in the current server session."""
     return list(_tickets)

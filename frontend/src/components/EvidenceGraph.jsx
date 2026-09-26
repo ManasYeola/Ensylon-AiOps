@@ -8,6 +8,7 @@ import {
   Search,
   ChevronRight,
 } from 'lucide-react';
+import { formatIST } from '../utils/time';
 
 // Service color scheme for distinct visual clustering matching broadsheet palette
 const SERVICE_COLORS = {
@@ -926,7 +927,7 @@ export default function EvidenceGraph({ incident, graphData }) {
                   <div>
                     <span style={{ color: 'var(--text-muted)' }}>Time: </span>
                     <strong style={{ color: 'var(--text-secondary)' }}>
-                      {new Date(selectedNode.timestamp).toLocaleTimeString()}
+                      {formatIST(selectedNode.timestamp)}
                     </strong>
                   </div>
                 )}
@@ -1028,19 +1029,21 @@ export default function EvidenceGraph({ incident, graphData }) {
                         <div
                           style={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(4, 1fr)',
+                            gridTemplateColumns: 'repeat(5, 1fr)',
                             gap: '4px',
-                            fontSize: '0.65rem',
+                            fontSize: '0.64rem',
                             color: 'var(--text-secondary)',
                             background: '#FAF8F0',
                             padding: '5px 8px',
                             borderRadius: 'var(--radius-md)',
+                            textAlign: 'center',
                           }}
                         >
-                          <span>Temporal: {(edge.temporal ?? 0).toFixed(2)}</span>
-                          <span>Service: {(edge.service ?? 0).toFixed(2)}</span>
-                          <span>Topo: {(edge.topology ?? 0).toFixed(2)}</span>
-                          <span>Evidence: {(edge.evidence_similarity ?? 0).toFixed(2)}</span>
+                          <div><span style={{ color: '#807663' }}>Temporal:</span> <strong>{(edge.temporal ?? 0).toFixed(2)}</strong></div>
+                          <div><span style={{ color: '#807663' }}>Service:</span> <strong>{(edge.service ?? 0).toFixed(2)}</strong></div>
+                          <div><span style={{ color: '#807663' }}>Component:</span> <strong>{(edge.component ?? 0).toFixed(2)}</strong></div>
+                          <div><span style={{ color: '#807663' }}>Topo:</span> <strong>{(edge.topology ?? 0).toFixed(2)}</strong></div>
+                          <div><span style={{ color: '#807663' }}>Evidence:</span> <strong>{(edge.evidence_similarity ?? 0).toFixed(2)}</strong></div>
                         </div>
                       </div>
                     );

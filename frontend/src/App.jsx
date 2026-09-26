@@ -53,9 +53,16 @@ export default function App() {
           setSignals([]);
         }
         if (jList.status === 'fulfilled') {
-          setJiraTickets(jList.value || []);
+          const serverList = jList.value || [];
+          setJiraTickets((prev) => {
+            const serverIds = new Set(serverList.map((t) => t.id || t.jira_id));
+            const missingLocal = (prev || []).filter(
+              (t) => !serverIds.has(t.id) && !serverIds.has(t.jira_id)
+            );
+            return [...serverList, ...missingLocal];
+          });
         } else {
-          setJiraTickets([]);
+          setJiraTickets((prev) => prev || []);
         }
 
         if (incList.status === 'fulfilled') {
@@ -159,7 +166,7 @@ export default function App() {
   // Handle Jira ticket published
   const handleTicketPublished = (ticket) => {
     setJiraTickets((prev) => [ticket, ...prev.filter((t) => t.id !== ticket.id)]);
-    showToast(`Published to Jira: ${ticket.id} (${ticket.title})`);
+    showToast(`Published ticket ${ticket.id} to Jira & saved to output/tickets/${ticket.id}.json`);
   };
 
   const tabs = [

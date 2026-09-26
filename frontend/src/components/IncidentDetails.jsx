@@ -237,9 +237,9 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#807663', fontWeight: 700 }}>
-              COMPUTED SEVERITY METRIC
-            </span>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#252525', margin: 0 }}>
+              Severity Score
+            </h2>
             <span
               style={{
                 padding: '3px 10px',
@@ -254,10 +254,6 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
               {Number(severityScore) > 70 ? 'Critical' : Number(severityScore) >= 50 ? 'High' : 'Medium'} Tier
             </span>
           </div>
-
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#252525', margin: 0 }}>
-            Severity Score
-          </h2>
 
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '4px' }}>
             <span style={{ fontSize: '3.2rem', fontWeight: 800, color: '#252525', lineHeight: 1, letterSpacing: '-0.02em' }}>
@@ -280,24 +276,6 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
             gap: '12px',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#807663', fontWeight: 700 }}>
-              CAUSAL VALIDATION METRIC
-            </span>
-            <span
-              style={{
-                padding: '3px 10px',
-                borderRadius: 'var(--radius-full)',
-                background: '#3D4654',
-                color: '#FFFFFF',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-              }}
-            >
-              DETERMINISTIC CONSENSUS
-            </span>
-          </div>
-
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#252525', margin: 0 }}>
             Confidence Score
           </h2>

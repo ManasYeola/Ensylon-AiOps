@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshCw, User } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 export default function Header({
   health,
@@ -94,23 +94,6 @@ export default function Header({
         >
           <RefreshCw size={16} />
         </button>
-
-        {/* User Icon */}
-        <div
-          style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '50%',
-            background: '#785A00',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#FFFFFF',
-            marginLeft: '4px',
-          }}
-        >
-          <User size={16} />
-        </div>
       </div>
     </header>
   );

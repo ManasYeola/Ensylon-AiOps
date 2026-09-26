@@ -36,6 +36,7 @@ export default function TicketReview({
   const [editedRootCause, setEditedRootCause] = useState('');
   const [editedSteps, setEditedSteps] = useState('');
   const [draftsCache, setDraftsCache] = useState({});
+  const [publishedMap, setPublishedMap] = useState({});
 
 
 
@@ -129,6 +130,7 @@ export default function TicketReview({
     setError(null);
     try {
       const ticket = await api.publishToJira(incident.id);
+      setPublishedMap((prev) => ({ ...prev, [incident.id]: ticket }));
       if (onTicketPublished) {
         onTicketPublished(ticket);
       }
@@ -156,9 +158,9 @@ export default function TicketReview({
   }
 
   // Find if this incident is already published to Jira
-  const publishedTicket = (jiraTickets || []).find(
-    (t) => t.incident_id === incident.id
-  );
+  const publishedTicket =
+    publishedMap[incident.id] ||
+    (jiraTickets || []).find((t) => t.incident_id === incident.id);
   const isApproved = draft?.review_status === 'approved' || !!publishedTicket;
 
   const severityScore =
@@ -343,24 +345,36 @@ export default function TicketReview({
                     borderRadius: 'var(--radius-lg)',
                   }}
                 >
-                  <CheckCircle size={18} color="var(--green)" />
+                  <CheckCircle size={20} color="#10B981" />
                   <div>
                     <div
                       style={{
-                        fontSize: '0.8rem',
+                        fontSize: '0.82rem',
                         fontWeight: 700,
-                        color: 'var(--green)',
+                        color: '#10B981',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
                       }}
                     >
                       Published: {publishedTicket.id}
                     </div>
                     <div
                       style={{
-                        fontSize: '0.7rem',
+                        fontSize: '0.72rem',
                         color: 'var(--text-secondary)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px',
+                        marginTop: '2px',
                       }}
                     >
-                      {publishedTicket.url ? 'Live Atlassian Jira Cloud Issue' : `Persisted to output/tickets/${publishedTicket.id}.json`}
+                      <span>
+                        {publishedTicket.url ? '✓ Live on Atlassian Jira Cloud' : '✓ Published to Jira System'}
+                      </span>
+                      <span style={{ color: '#807663', fontFamily: 'var(--font-mono)' }}>
+                        ✓ Persisted to output/tickets/{publishedTicket.id}.json
+                      </span>
                     </div>
                   </div>
 
@@ -899,7 +913,11 @@ export default function TicketReview({
                   <button
                     className="btn btn-danger"
                     onClick={() => handleReview('reject')}
-                    disabled={reviewing || draft.review_status === 'rejected'}
+                    disabled={reviewing || isApproved || draft.review_status === 'rejected'}
+                    style={{
+                      opacity: (isApproved || draft.review_status === 'rejected') ? 0.45 : 1,
+                      cursor: (isApproved || draft.review_status === 'rejected') ? 'not-allowed' : 'pointer',
+                    }}
                   >
                     <XCircle size={15} />
                     <span>Reject</span>
@@ -908,7 +926,11 @@ export default function TicketReview({
                   <button
                     className="btn btn-secondary"
                     onClick={() => setIsEditing(true)}
-                    disabled={reviewing}
+                    disabled={reviewing || isApproved}
+                    style={{
+                      opacity: isApproved ? 0.45 : 1,
+                      cursor: isApproved ? 'not-allowed' : 'pointer',
+                    }}
                   >
                     <Edit3 size={15} />
                     <span>Edit Draft</span>
@@ -917,10 +939,14 @@ export default function TicketReview({
                   <button
                     className="btn btn-success"
                     onClick={() => handleReview('approve')}
-                    disabled={reviewing || draft.review_status === 'approved'}
+                    disabled={reviewing || isApproved}
+                    style={{
+                      opacity: isApproved ? 0.45 : 1,
+                      cursor: isApproved ? 'not-allowed' : 'pointer',
+                    }}
                   >
                     <CheckCircle size={15} />
-                    <span>Approve Draft</span>
+                    <span>{isApproved ? 'Draft Approved' : 'Approve Draft'}</span>
                   </button>
                 </>
               )}

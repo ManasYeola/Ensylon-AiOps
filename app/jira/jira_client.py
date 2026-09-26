@@ -19,7 +19,7 @@ import httpx
 
 from app.models.ticket import TicketDraft
 from app.review.review import is_approved
-from app.jira.mock_jira import publish_to_jira as publish_to_mock, JiraError, OUTPUT_DIR, _ensure_output_dir
+from app.jira.mock_jira import publish_to_jira as publish_to_mock, JiraError, OUTPUT_DIR, _ensure_output_dir, _tickets
 
 logger = logging.getLogger(__name__)
 
@@ -220,6 +220,7 @@ def _publish_to_atlassian_jira(draft: TicketDraft, incident_id: Optional[str], c
             "published_at": datetime.utcnow().isoformat() + "Z",
             "is_real_jira": True,
             "url": issue_url,
+            "output_path": f"output/tickets/{issue_key}.json",
         }
 
         # Also persist to output/tickets
@@ -228,8 +229,13 @@ def _publish_to_atlassian_jira(draft: TicketDraft, incident_id: Optional[str], c
             out_path = OUTPUT_DIR / f"{issue_key}.json"
             with open(out_path, "w", encoding="utf-8") as f:
                 json.dump(ticket, f, indent=2, ensure_ascii=False)
+            if incident_id:
+                inc_path = OUTPUT_DIR / f"{incident_id}.json"
+                with open(inc_path, "w", encoding="utf-8") as f:
+                    json.dump(ticket, f, indent=2, ensure_ascii=False)
             logger.info("Live Jira ticket persisted locally to %s", out_path)
         except Exception as e:
             logger.warning("Could not persist ticket to disk: %s", e)
 
+        _tickets.append(ticket)
         return ticket

@@ -42,10 +42,10 @@ export default function Dashboard({
     incidents.flatMap((inc) => inc.signal_ids || [])
   );
   
-  // Unclustered / Suppressed signals
-  const rejectedSignals = allSignals.filter(
-    (s) => !acceptedSignalIds.has(s.id)
-  );
+  // Unclustered / Suppressed signals - sorted newest first
+  const rejectedSignals = allSignals
+    .filter((s) => !acceptedSignalIds.has(s.id) && !acceptedSignalIds.has(s.signal_id))
+    .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
 
   // Filtered incidents
   const filteredIncidents = incidents.filter((inc) => {
@@ -67,13 +67,37 @@ export default function Dashboard({
 
   const noiseItems =
     rejectedSignals.length > 0
-      ? rejectedSignals.slice(0, 6).map((s, idx) => ({
-          id: s.id || `SIG-${idx + 1}`,
-          title: s.message || s.summary || `${s.service || 'service'}: transient anomaly`,
-          metric: s.metric_value ? `${s.metric_value} delta` : 'sub-threshold',
-          badge: idx % 3 === 0 ? 'Isolated Spike' : idx % 3 === 1 ? 'Sub-threshold' : 'Transient Jitter',
-          time: `${(idx + 1) * 4}m ago`,
-        }))
+      ? rejectedSignals.slice(0, 8).map((s, idx) => {
+          const score = typeof s.anomaly_score === 'number' ? s.anomaly_score : null;
+
+          // Dynamic badge based on actual signal characteristics
+          let badge = 'Uncorrelated';
+          if (score != null && score > 0) {
+            if (score < 0.5) badge = 'Sub-threshold';
+            else if (score >= 0.8) badge = 'Isolated Spike';
+            else badge = 'Unclustered Anomaly';
+          } else if (s.signal_type === 'error_log_burst') {
+            badge = 'Log Burst';
+          } else if (s.source === 'grafana_alerts') {
+            badge = 'Alert Pulse';
+          }
+
+          // Dynamic metric label based on actual signal values
+          let metric = null;
+          if (score != null && score > 0) {
+            metric = `score ${score.toFixed(2)}`;
+          } else if (s.value != null) {
+            metric = `val ${s.value}`;
+          }
+
+          return {
+            id: s.id || s.signal_id || `SIG-${idx + 1}`,
+            title: s.evidence || s.message || s.summary || `${s.service || 'service'}: transient anomaly`,
+            metric,
+            badge,
+            time: formatIST(s.timestamp),
+          };
+        })
       : [];
 
   const outlierCount = rejectedSignals.length;
@@ -856,6 +880,7 @@ export default function Dashboard({
                         borderRadius: 'var(--radius-full)',
                         background: '#3D4654',
                         color: '#FFFFFF',
+                        flexShrink: 0,
                       }}
                     >
                       {item.id}
@@ -869,9 +894,11 @@ export default function Dashboard({
                       }}
                     >
                       {item.title}{' '}
-                      <span style={{ color: '#807663', fontFamily: 'var(--font-mono)' }}>
-                        ({item.metric})
-                      </span>
+                      {item.metric && (
+                        <span style={{ color: '#807663', fontFamily: 'var(--font-mono)' }}>
+                          ({item.metric})
+                        </span>
+                      )}
                     </span>
                   </div>
 
@@ -889,7 +916,7 @@ export default function Dashboard({
                     >
                       {item.badge}
                     </span>
-                    <span style={{ color: '#807663', fontSize: '0.72rem' }}>
+                    <span style={{ color: '#807663', fontSize: '0.72rem', fontFamily: 'var(--font-mono)' }}>
                       {item.time}
                     </span>
                   </div>

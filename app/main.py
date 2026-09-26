@@ -544,20 +544,31 @@ async def _consume_stream(stream_name: str, url: str) -> None:
     status_entry = _stream_status[stream_name]
     last_id = None
 
-    # By default, replay the simulator's historical buffer on startup for fast initial
-    # signal ingestion. Use REPLAY_STREAM_HISTORY=false to start at live HEAD instead
-    # (e.g. after calling /api/reset, where you want a clean slate with no backlog).
+    # By default, replay a recent backlog (~85 events per channel = ~255 total signals)
+    # to maintain initial count within the 200-300 range without pulling the full ~600 buffer.
     replay_history = os.getenv("REPLAY_STREAM_HISTORY", "true").lower() not in ("false", "0", "no")
+    stream_channel = f"aiops-{stream_name}" if not stream_name.startswith("aiops-") else stream_name
+    latest_seqs = await _get_latest_stream_seqs()
+    last_seq_str = latest_seqs.get(stream_channel) or latest_seqs.get(stream_name)
+
     if not replay_history:
-        stream_channel = f"aiops-{stream_name}" if not stream_name.startswith("aiops-") else stream_name
-        latest_seqs = await _get_latest_stream_seqs()
-        last_id = latest_seqs.get(stream_channel) or latest_seqs.get(stream_name)
+        last_id = last_seq_str
         if last_id:
             logger.info(
                 "Initializing stream %s at live HEAD (lastSeq=%s) — signals start at 0",
                 stream_name, last_id,
             )
             status_entry["last_event_id"] = last_id
+    elif last_seq_str and last_seq_str.isdigit():
+        # Fetch ~80-90 events per channel (~255 signals total across the 3 streams)
+        backlog_per_channel = int(os.getenv("STREAM_BACKLOG_PER_CHANNEL", "85"))
+        start_seq = max(0, int(last_seq_str) - backlog_per_channel)
+        last_id = str(start_seq)
+        logger.info(
+            "Initializing stream %s with recent buffer (startSeq=%s, latestSeq=%s, ~%d events)",
+            stream_name, last_id, last_seq_str, int(last_seq_str) - start_seq,
+        )
+        status_entry["last_event_id"] = last_id
 
     while True:
         try:
@@ -811,6 +822,10 @@ def publish_jira(incident_id: str) -> dict:
         raise HTTPException(status_code=404, detail="No draft — POST /draft first")
     try:
         ticket = publish_to_jira(draft, incident_id=incident_id)
+        if incident_id in _incidents:
+            _incidents[incident_id] = _incidents[incident_id].model_copy(
+                update={"status": "resolved"}
+            )
         return ticket
     except JiraError as e:
         raise HTTPException(status_code=403, detail=str(e))
