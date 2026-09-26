@@ -84,6 +84,9 @@ class Signal(BaseModel):
                 if "message" not in d or d["message"] is None:
                     d["message"] = str(d["evidence"])
 
+            if "template_id" in d and d["template_id"] is not None:
+                d["template_id"] = str(d["template_id"])
+
             return d
         return data
 
@@ -97,6 +100,8 @@ class Signal(BaseModel):
             self.message = self.evidence
         if not self.evidence and self.message:
             self.evidence = self.message
+        if self.template_id is not None:
+            self.template_id = str(self.template_id)
         return self
 
 

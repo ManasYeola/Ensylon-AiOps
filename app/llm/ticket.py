@@ -23,6 +23,7 @@ import os
 import json
 import logging
 
+from app.config import load_config
 from app.models.signal import Signal
 from app.models.incident import Incident
 from app.models.fingerprint import IncidentFingerprint
@@ -69,25 +70,23 @@ def _resolve_provider() -> tuple[str, str | None, str, str]:
     """
     Resolve provider from LLM_PROVIDER env var.
     Returns (provider_name, base_url, model, api_key).
-    Falls back to mock if no key is set.
+    Raises ValueError if provider is unknown or if required API key is missing.
     """
     provider = os.getenv("LLM_PROVIDER", "anthropic").lower().strip()
 
     if provider not in _PROVIDERS:
-        logger.warning("Unknown LLM_PROVIDER '%s', falling back to mock.", provider)
-        provider = "mock"
+        raise ValueError(
+            f"Unknown LLM_PROVIDER '{provider}'. Supported providers: {list(_PROVIDERS.keys())}"
+        )
 
     base_url, default_model, key_env = _PROVIDERS[provider]
     api_key = os.getenv(key_env, "") if key_env else ""
-    model = os.getenv("LLM_MODEL", "").strip() or default_model  # blank → use default
+    model = os.getenv("LLM_MODEL", "").strip() or default_model
 
     if provider != "mock" and not api_key:
-        logger.warning(
-            "LLM_PROVIDER='%s' but %s is not set. Falling back to mock.",
-            provider,
-            key_env,
+        raise ValueError(
+            f"LLM_PROVIDER='{provider}' requires environment variable '{key_env}', but it is not set."
         )
-        provider = "mock"
 
     return provider, base_url, model, api_key
 
@@ -198,40 +197,35 @@ DRAFT_TOOL: dict = {
 def _call_anthropic(evidence: dict, model: str, api_key: str) -> dict:
     """
     Call the Anthropic Claude API using Tool Calling to enforce strict JSON output.
-    Falls back to mock on any failure.
+    Raises RuntimeError or API errors on failure.
     """
-    try:
-        import anthropic  # type: ignore
+    import anthropic  # type: ignore
 
-        client = anthropic.Anthropic(api_key=api_key)
-        message = client.messages.create(
-            model=model,
-            max_tokens=1024,
-            system=SYSTEM_PROMPT,
-            tools=[DRAFT_TOOL],
-            tool_choice={"type": "tool", "name": "draft_incident_ticket"},
-            messages=[
-                {"role": "user", "content": json.dumps(evidence, indent=2, default=str)}
-            ],
-        )
+    client = anthropic.Anthropic(api_key=api_key)
+    message = client.messages.create(
+        model=model,
+        max_tokens=1024,
+        system=SYSTEM_PROMPT,
+        tools=[DRAFT_TOOL],
+        tool_choice={"type": "tool", "name": "draft_incident_ticket"},
+        messages=[
+            {"role": "user", "content": json.dumps(evidence, indent=2, default=str)}
+        ],
+    )
 
-        # Extract the tool use block — this is guaranteed JSON by the tool schema
-        for block in message.content:
-            if block.type == "tool_use" and block.name == "draft_incident_ticket":
-                return block.input  # already a parsed dict
+    # Extract the tool use block — this is guaranteed JSON by the tool schema
+    for block in message.content:
+        if block.type == "tool_use" and block.name == "draft_incident_ticket":
+            return block.input  # already a parsed dict
 
-        logger.warning("Anthropic returned no tool_use block. Falling back to mock.")
-        return _mock_llm_response(evidence)
-
-    except Exception as e:
-        logger.warning("Anthropic call failed (%s: %s). Falling back to mock.", type(e).__name__, e)
-        return _mock_llm_response(evidence)
+    raise RuntimeError("Anthropic API returned a response without a 'draft_incident_ticket' tool_use block.")
 
 
 def _call_llm(evidence: dict) -> dict:
     """
     Call the configured LLM provider with the evidence package.
-    Falls back to deterministic mock if no API key is set.
+    Only returns mock if explicitly configured as provider='mock'.
+    Raises on any provider errors.
     """
     provider, base_url, model, api_key = _resolve_provider()
 
@@ -243,47 +237,42 @@ def _call_llm(evidence: dict) -> dict:
         return _call_anthropic(evidence, model, api_key)
 
     # All other providers: OpenAI-compatible endpoint
-    try:
-        import openai
+    import openai
 
-        client_kwargs: dict = {"api_key": api_key}
-        if base_url and base_url != "__anthropic__":
-            client_kwargs["base_url"] = base_url
+    client_kwargs: dict = {"api_key": api_key}
+    if base_url and base_url != "__anthropic__":
+        client_kwargs["base_url"] = base_url
 
-        client = openai.OpenAI(**client_kwargs)
+    client = openai.OpenAI(**client_kwargs)
 
-        openai_system = SYSTEM_PROMPT.replace(
-            "6. You must call the `draft_incident_ticket` tool with your analysis — do not respond with plain text.",
-            "6. Output valid JSON matching this schema exactly — no markdown, no code fences:\n"
-            '{"title": "...", "summary": "...", "suspected_root_cause": "...", "investigation_steps": ["..."]}',
-        )
+    openai_system = SYSTEM_PROMPT.replace(
+        "6. You must call the `draft_incident_ticket` tool with your analysis — do not respond with plain text.",
+        "6. Output valid JSON matching this schema exactly — no markdown, no code fences:\n"
+        '{"title": "...", "summary": "...", "suspected_root_cause": "...", "investigation_steps": ["..."]}',
+    )
 
-        create_kwargs = dict(
-            model=model,
-            messages=[
-                {"role": "system", "content": openai_system},
-                {"role": "user", "content": json.dumps(evidence, indent=2, default=str)},
-            ],
-            temperature=0.1,
-        )
+    create_kwargs = dict(
+        model=model,
+        messages=[
+            {"role": "system", "content": openai_system},
+            {"role": "user", "content": json.dumps(evidence, indent=2, default=str)},
+        ],
+        temperature=0.1,
+    )
 
-        if provider in ("groq", "openai", "gemini"):
-            create_kwargs["response_format"] = {"type": "json_object"}
+    if provider in ("groq", "openai", "gemini"):
+        create_kwargs["response_format"] = {"type": "json_object"}
 
-        response = client.chat.completions.create(**create_kwargs)
-        raw = (response.choices[0].message.content or "").strip()
+    response = client.chat.completions.create(**create_kwargs)
+    raw = (response.choices[0].message.content or "").strip()
 
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-            raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
 
-        return json.loads(raw)
-
-    except Exception as e:
-        logger.warning("LLM call failed (%s: %s). Falling back to mock.", type(e).__name__, e)
-        return _mock_llm_response(evidence)
+    return json.loads(raw)
 
 
 def _mock_llm_response(evidence: dict) -> dict:

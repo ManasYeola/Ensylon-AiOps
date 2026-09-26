@@ -20,19 +20,12 @@ CRITICALITY_MAP_PATH = Path(__file__).parent.parent.parent / "data" / "criticali
 
 @lru_cache(maxsize=1)
 def _load_criticality_map() -> dict[str, float]:
-    """
-    Load data/criticality_map.json once.  Falls back to the config.yaml
-    service_criticality block so existing tests still pass if the JSON file
-    is missing (e.g. in CI before the data file is committed).
-    """
-    if CRITICALITY_MAP_PATH.exists():
-        with open(CRITICALITY_MAP_PATH, "r", encoding="utf-8") as f:
-            raw = json.load(f)
-        return {k.lower(): float(v) for k, v in raw.items()}
-
-    # Fallback: read from config.yaml (legacy path)
-    cfg = get_severity_cfg()
-    return {k.lower(): float(v) for k, v in cfg.get("service_criticality", {}).items()}
+    """Load data/criticality_map.json once. Raises FileNotFoundError if missing."""
+    if not CRITICALITY_MAP_PATH.exists():
+        raise FileNotFoundError(f"Criticality map not found at {CRITICALITY_MAP_PATH}")
+    with open(CRITICALITY_MAP_PATH, "r", encoding="utf-8") as f:
+        raw = json.load(f)
+    return {k.lower(): float(v) for k, v in raw.items()}
 
 
 def get_service_criticality(service: str) -> float:

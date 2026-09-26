@@ -210,9 +210,10 @@ def _detect_and_score(signal: Signal) -> Signal:
         )
 
         evidence = signal.evidence or f"[REDACTED] {template_text}"
+        chosen_tid = signal.template_id or tid
         return signal.model_copy(update={
             "anomaly_score": score,
-            "template_id": signal.template_id or tid,
+            "template_id": str(chosen_tid) if chosen_tid is not None else None,
             "evidence": evidence,
         })
 
@@ -594,7 +595,14 @@ def create_draft(incident_id: str) -> dict:
     if not fp or not cluster_signals:
         raise HTTPException(status_code=422, detail="Missing signals or fingerprint")
 
-    draft = generate_ticket_draft(inc, cluster_signals, fp)
+    try:
+        draft = generate_ticket_draft(inc, cluster_signals, fp)
+    except Exception as e:
+        logger.exception("LLM draft generation failed for incident %s", incident_id)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"LLM draft generation failed: {e}",
+        )
     _drafts[incident_id] = draft
     return draft.model_dump()
 

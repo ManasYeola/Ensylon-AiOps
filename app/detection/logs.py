@@ -49,14 +49,10 @@ _template_miner: Optional[object] = None
 def _get_template_miner():
     global _template_miner
     if _template_miner is None:
-        if DRAIN3_AVAILABLE:
-            try:
-                config = TemplateMinerConfig()
-                _template_miner = TemplateMiner(config=config)
-            except Exception:
-                _template_miner = _FallbackMiner()
-        else:
-            _template_miner = _FallbackMiner()
+        if not DRAIN3_AVAILABLE:
+            raise ImportError("drain3 is not installed. Drain3 is required for log template mining.")
+        config = TemplateMinerConfig()
+        _template_miner = TemplateMiner(config=config)
     return _template_miner
 
 
@@ -85,13 +81,12 @@ def extract_template(log_message: str) -> tuple[str, str]:
     """
     miner = _get_template_miner()
     result = miner.add_log_message(log_message)
-    if DRAIN3_AVAILABLE and not isinstance(result, dict):
-        # Drain3 object-based API
-        cluster_id = str(result.cluster_id)
-        template = result.get_template()
+    if isinstance(result, dict):
+        cluster_id = str(result["cluster_id"])
+        template = str(result["template_mined"])
     else:
-        cluster_id = result["cluster_id"]
-        template = result["template_mined"]
+        cluster_id = str(result.cluster_id)
+        template = str(result.get_template())
     return cluster_id, template
 
 

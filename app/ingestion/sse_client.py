@@ -34,13 +34,7 @@ def normalize_event_by_source(source_type: str, data: str) -> Signal:
     elif "log" in src:
         return normalize_log(data)
     else:
-        # Default try JSON -> CloudWatch, else plain text log
-        if data.strip().startswith("{"):
-            try:
-                return normalize_cloudwatch(data)
-            except Exception:
-                return normalize_grafana(data)
-        return normalize_log(data)
+        raise ValueError(f"Unknown or unsupported source_type '{source_type}' for event payload.")
 
 
 async def consume_sse_stream(
@@ -111,19 +105,16 @@ async def consume_sse_stream(
                                 if event_id:
                                     current_last_id = event_id
 
-                                try:
-                                    signal = normalize_event_by_source(source_type, payload)
-                                    if persist_to_db:
-                                        from app.storage.db import save_signal
-                                        save_signal(signal)
+                                signal = normalize_event_by_source(source_type, payload)
+                                if persist_to_db:
+                                    from app.storage.db import save_signal
+                                    save_signal(signal)
 
-                                    if on_signal:
-                                        res = on_signal(signal, current_id)
-                                        if asyncio.iscoroutine(res):
-                                            await res
-                                    yield current_id, signal
-                                except Exception as e:
-                                    logger.error("Error normalizing signal event (%s): %s", current_id, e)
+                                if on_signal:
+                                    res = on_signal(signal, current_id)
+                                    if asyncio.iscoroutine(res):
+                                        await res
+                                yield current_id, signal
 
                             event_id = None
                             event_type = "message"

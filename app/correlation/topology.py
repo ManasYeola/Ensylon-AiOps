@@ -17,16 +17,10 @@ TOPOLOGY_URL = "https://logs.nonprod.nexus.ensylon.com/sim/reference/service-dep
 
 @lru_cache(maxsize=1)
 def load_topology() -> dict[str, list[str]]:
-    """Load adjacency list from URL with fallback to local topology.json."""
-    try:
-        resp = httpx.get(TOPOLOGY_URL, timeout=5.0)
-        resp.raise_for_status()
-        return resp.json()
-    except Exception as e:
-        logger.warning(f"Failed to fetch topology from HTTP ({e}), falling back to local file")
-    
-    with open(TOPOLOGY_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """Load adjacency list from URL. Raises on HTTP or network errors."""
+    resp = httpx.get(TOPOLOGY_URL, timeout=5.0)
+    resp.raise_for_status()
+    return resp.json()
 
 
 def get_hop_distance(service_a: str, service_b: str, max_hops: int = 4) -> int:
