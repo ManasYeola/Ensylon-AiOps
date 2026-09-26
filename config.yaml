@@ -15,14 +15,6 @@ severity:
   trend: 0.20
   magnitude: 0.10
 
-  service_criticality:
-    checkout: 95
-    payment: 92
-    order: 88
-    database: 70
-    internal_admin: 20
-    recommendation: 15
-    unknown: 50
 
 confidence:
   density: 0.35
