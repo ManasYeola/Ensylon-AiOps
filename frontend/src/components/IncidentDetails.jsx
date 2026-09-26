@@ -230,24 +230,6 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
                   padding: '4px 12px',
                   borderRadius: 'var(--radius-full)',
                   background: '#FFFFFF',
-                  border: '1px solid rgba(186, 26, 26, 0.25)',
-                  fontSize: '0.74rem',
-                  fontWeight: 700,
-                  color: '#BA1A1A',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                }}
-              >
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#BA1A1A' }} />
-                SEV: HIGH {severityScore}
-              </span>
-
-              <span
-                style={{
-                  padding: '4px 12px',
-                  borderRadius: 'var(--radius-full)',
-                  background: '#FFFFFF',
                   border: '1px solid rgba(61, 70, 84, 0.15)',
                   fontSize: '0.74rem',
                   fontWeight: 700,
@@ -484,18 +466,6 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
                   Severity Score
                 </span>
               </div>
-              <span
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: 'var(--radius-full)',
-                  background: 'rgba(186, 26, 26, 0.1)',
-                  color: '#BA1A1A',
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                }}
-              >
-                HIGH IMPACT
-              </span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', margin: '14px 0 20px 0' }}>
