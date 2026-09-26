@@ -98,18 +98,19 @@ export default function App() {
     loadGraph();
   }, [selectedIncident]);
 
-  // Trigger full demo pipeline
+  // Check live stream status instead of running manual demo
   const handleRunDemo = async () => {
     setIsRunningDemo(true);
     try {
-      const res = await api.runDemo();
-      await loadData();
+      const res = await api.getStreamsStatus();
+      const streams = res.streams || {};
+      const connectedCount = Object.values(streams).filter(s => s.connected).length;
       showToast(
-        `Demo executed: ${res.signals_ingested} signals ingested, ${res.incidents_created} incidents validated!`
+        `Live Streams: ${connectedCount} connected. Listening for anomalous signals...`
       );
     } catch (err) {
-      console.error('Demo run error:', err);
-      showToast(`Error running demo: ${err.message}`);
+      console.error('Stream status error:', err);
+      showToast(`Error checking streams: ${err.message}`);
     } finally {
       setIsRunningDemo(false);
     }

@@ -70,7 +70,7 @@ export const api = {
   getJiraTickets: () => request('/api/jira/tickets'),
 
   // Demo Pipeline & Webhooks
-  runDemo: () => request('/api/demo/run', { method: 'POST' }),
+  getStreamsStatus: () => request('/api/streams/status'),
   testWebhook: (payload) =>
     request('/webhooks/test', {
       method: 'POST',

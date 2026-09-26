@@ -65,7 +65,7 @@ def generate_fingerprint(
     service_path = _build_service_path(signals)
     components = sorted({s.component for s in signals})
     topology = _build_topology_subgraph(service_path)
-    template_ids = sorted({s.template_id for s in signals if s.template_id})
+    template_ids = sorted({str(s.template_id) for s in signals if s.template_id})
     temporal_pattern = [
         s.timestamp.isoformat()
         for s in sorted(signals, key=lambda x: x.timestamp)

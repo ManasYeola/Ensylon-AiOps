@@ -151,7 +151,7 @@ async def consume_sse_stream(
         except (httpx.RequestError, httpx.HTTPStatusError, asyncio.CancelledError) as exc:
             if isinstance(exc, asyncio.CancelledError):
                 logger.info("SSE consumption cancelled for %s", stream_url)
-                break
+                raise
 
             reconnect_attempts += 1
             if 0 <= max_reconnects < reconnect_attempts:

@@ -109,17 +109,17 @@ export default function Header({
           className="btn btn-primary"
           onClick={onRunDemo}
           disabled={isRunningDemo}
-          title="Run full 18-signal replay correlation pipeline"
+          title="Check Live Streams Status"
         >
           {isRunningDemo ? (
             <>
               <RefreshCw size={15} className="animate-spin" />
-              <span>Correlating Signals...</span>
+              <span>Checking Streams...</span>
             </>
           ) : (
             <>
-              <Play size={15} fill="currentColor" />
-              <span>Run Pipeline Demo</span>
+              <Server size={15} />
+              <span>Check Streams</span>
             </>
           )}
         </button>
