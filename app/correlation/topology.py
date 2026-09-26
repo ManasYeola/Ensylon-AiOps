@@ -17,10 +17,28 @@ TOPOLOGY_URL = "https://logs.nonprod.nexus.ensylon.com/sim/reference/service-dep
 
 @lru_cache(maxsize=1)
 def load_topology() -> dict[str, list[str]]:
-    """Load adjacency list from URL. Raises on HTTP or network errors."""
-    resp = httpx.get(TOPOLOGY_URL, timeout=5.0)
-    resp.raise_for_status()
-    return resp.json()
+    """
+    Load service dependency graph.
+    Attempts to fetch from simulator reference endpoint (PS §6.1).
+    Falls back to data/topology.json if network or endpoint fails.
+    """
+    try:
+        resp = httpx.get(TOPOLOGY_URL, timeout=4.0)
+        resp.raise_for_status()
+        data = resp.json()
+        logger.info("Loaded service dependency graph from %s", TOPOLOGY_URL)
+        return data
+    except Exception as e:
+        logger.warning(
+            "Could not fetch topology from %s (%s). Falling back to %s",
+            TOPOLOGY_URL,
+            e,
+            TOPOLOGY_PATH,
+        )
+        if not TOPOLOGY_PATH.exists():
+            raise FileNotFoundError(f"Topology fallback not found at {TOPOLOGY_PATH}") from e
+        with open(TOPOLOGY_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
 
 
 def get_hop_distance(service_a: str, service_b: str, max_hops: int = 4) -> int:
