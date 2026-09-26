@@ -509,268 +509,7 @@ export default function Dashboard({
           />
         </div>
 
-        {/* Bento Cell 4: Noise Reduction Summary & Outlier Stat (Spans 4 cols on desktop) */}
-        <div
-          className="glass-card"
-          style={{
-            gridColumn: 'span 4',
-            padding: '22px 24px',
-            borderRadius: 'var(--radius-xl)',
-            background: '#FAF8F0',
-            border: '1px solid var(--border-subtle)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            gap: '16px',
-          }}
-        >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <span
-                style={{
-                  fontSize: '0.72rem',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  color: '#3D4654',
-                }}
-              >
-                Noise Reduction Metric
-              </span>
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.74rem',
-                  padding: '3px 10px',
-                  borderRadius: 'var(--radius-full)',
-                  background: '#3D4654',
-                  color: '#FFFFFF',
-                  fontWeight: 600,
-                }}
-              >
-                96.7% Rate
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '2rem', fontWeight: 800, color: '#3D4654', letterSpacing: '-0.02em' }}>
-                {outlierCount}
-              </span>
-              <span style={{ fontSize: '0.85rem', color: '#565F6E' }}>isolated outliers</span>
-            </div>
-
-            <p style={{ fontSize: '0.78rem', color: '#565F6E', lineHeight: 1.5 }}>
-              Signals auto-suppressed using sliding entropy windows. None demonstrated cross-cluster correlation within 60 minutes.
-            </p>
-          </div>
-
-          <div
-            style={{
-              padding: '10px 14px',
-              borderRadius: 'var(--radius-md)',
-              background: '#FFFFFF',
-              border: '1px solid var(--border-subtle)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: 'var(--radius-full)',
-                  background: 'rgba(61, 70, 84, 0.08)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#3D4654',
-                }}
-              >
-                <FileText size={15} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#3D4654' }}>
-                  Jira Ticket Review
-                </span>
-                <span style={{ fontSize: '0.68rem', color: '#807663' }}>
-                  Requires manual operator trigger
-                </span>
-              </div>
-            </div>
-            <span
-              style={{
-                fontSize: '0.7rem',
-                padding: '2px 8px',
-                borderRadius: 'var(--radius-full)',
-                background: '#EAE6DB',
-                color: '#565F6E',
-                fontWeight: 600,
-              }}
-            >
-              {jiraTicketsCount > 0 ? `${jiraTicketsCount} Published` : '0 Pending'}
-            </span>
-          </div>
-        </div>
-
-        {/* Bento Cell 5: Filtered Telemetry Noise Stream (Spans 8 cols on desktop) */}
-        <div
-          className="glass-card"
-          style={{
-            gridColumn: 'span 8',
-            padding: '22px 24px',
-            borderRadius: 'var(--radius-xl)',
-            background: '#FAF8F0',
-            border: '1px solid var(--border-subtle)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            gap: '14px',
-          }}
-        >
-          {/* Header */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '10px',
-              paddingBottom: '10px',
-              borderBottom: '1px solid var(--border-subtle)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: 'var(--radius-full)',
-                  background: '#FFFFFF',
-                  border: '1px solid var(--border-subtle)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#565F6E',
-                }}
-              >
-                <Sliders size={16} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: '0.94rem', fontWeight: 700, color: '#252525' }}>
-                  Suppression Telemetry Stream
-                </h3>
-                <p style={{ fontSize: '0.74rem', color: '#565F6E' }}>
-                  Continuous evaluation of unclustered transient pulses
-                </p>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.74rem',
-                  padding: '3px 12px',
-                  borderRadius: 'var(--radius-full)',
-                  background: '#FFFFFF',
-                  color: '#565F6E',
-                  border: '1px solid var(--border-subtle)',
-                }}
-              >
-                {outlierCount} outliers
-              </span>
-              <button
-                onClick={handleRefreshNoise}
-                title="Re-evaluate thresholds"
-                style={{
-                  padding: '6px',
-                  borderRadius: 'var(--radius-full)',
-                  background: '#FFFFFF',
-                  border: '1px solid var(--border-subtle)',
-                  color: '#565F6E',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <RefreshCw size={14} className={isRefreshingNoise ? 'animate-spin' : ''} />
-              </button>
-            </div>
-          </div>
-
-          {/* Outlier Stream Rows */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {noiseItems.map((item, idx) => (
-              <div
-                key={item.id + idx}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  borderRadius: 'var(--radius-md)',
-                  background: '#FFFFFF',
-                  border: '1px solid var(--border-subtle)',
-                  fontSize: '0.78rem',
-                  gap: '12px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                  <span
-                    className="font-mono"
-                    style={{
-                      fontSize: '0.74rem',
-                      fontWeight: 700,
-                      padding: '2px 10px',
-                      borderRadius: 'var(--radius-full)',
-                      background: '#3D4654',
-                      color: '#FFFFFF',
-                    }}
-                  >
-                    {item.id}
-                  </span>
-                  <span
-                    style={{
-                      color: '#252525',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {item.title}{' '}
-                    <span style={{ color: '#807663', fontFamily: 'var(--font-mono)' }}>
-                      ({item.metric})
-                    </span>
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-                  <span
-                    style={{
-                      fontSize: '0.7rem',
-                      padding: '2px 8px',
-                      borderRadius: 'var(--radius-full)',
-                      background: '#FAF8F0',
-                      color: '#565F6E',
-                      fontWeight: 500,
-                      border: '1px solid var(--border-subtle)',
-                    }}
-                  >
-                    {item.badge}
-                  </span>
-                  <span style={{ color: '#807663', fontSize: '0.72rem' }}>
-                    {item.time}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Bento Cell 5: All Correlated Incidents Registry (Spans 12 cols) */}
+        {/* Bento Cell 4: All Correlated Incidents Registry (Spans 12 cols) */}
         <div
           className="glass-card"
           style={{
@@ -1036,6 +775,267 @@ export default function Dashboard({
               })}
             </div>
           )}
+        </div>
+
+        {/* Bento Cell 5: Noise Reduction Summary & Outlier Stat (Spans 4 cols on desktop) */}
+        <div
+          className="glass-card"
+          style={{
+            gridColumn: 'span 4',
+            padding: '22px 24px',
+            borderRadius: 'var(--radius-xl)',
+            background: '#FAF8F0',
+            border: '1px solid var(--border-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            gap: '16px',
+          }}
+        >
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <span
+                style={{
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  color: '#3D4654',
+                }}
+              >
+                Noise Reduction Metric
+              </span>
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.74rem',
+                  padding: '3px 10px',
+                  borderRadius: 'var(--radius-full)',
+                  background: '#3D4654',
+                  color: '#FFFFFF',
+                  fontWeight: 600,
+                }}
+              >
+                96.7% Rate
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '2rem', fontWeight: 800, color: '#3D4654', letterSpacing: '-0.02em' }}>
+                {outlierCount}
+              </span>
+              <span style={{ fontSize: '0.85rem', color: '#565F6E' }}>isolated outliers</span>
+            </div>
+
+            <p style={{ fontSize: '0.78rem', color: '#565F6E', lineHeight: 1.5 }}>
+              Signals auto-suppressed using sliding entropy windows. None demonstrated cross-cluster correlation within 60 minutes.
+            </p>
+          </div>
+
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-md)',
+              background: '#FFFFFF',
+              border: '1px solid var(--border-subtle)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: 'var(--radius-full)',
+                  background: 'rgba(61, 70, 84, 0.08)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#3D4654',
+                }}
+              >
+                <FileText size={15} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#3D4654' }}>
+                  Jira Ticket Review
+                </span>
+                <span style={{ fontSize: '0.68rem', color: '#807663' }}>
+                  Requires manual operator trigger
+                </span>
+              </div>
+            </div>
+            <span
+              style={{
+                fontSize: '0.7rem',
+                padding: '2px 8px',
+                borderRadius: 'var(--radius-full)',
+                background: '#EAE6DB',
+                color: '#565F6E',
+                fontWeight: 600,
+              }}
+            >
+              {jiraTicketsCount > 0 ? `${jiraTicketsCount} Published` : '0 Pending'}
+            </span>
+          </div>
+        </div>
+
+        {/* Bento Cell 6: Filtered Telemetry Noise Stream (Spans 8 cols on desktop) */}
+        <div
+          className="glass-card"
+          style={{
+            gridColumn: 'span 8',
+            padding: '22px 24px',
+            borderRadius: 'var(--radius-xl)',
+            background: '#FAF8F0',
+            border: '1px solid var(--border-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            gap: '14px',
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '10px',
+              paddingBottom: '10px',
+              borderBottom: '1px solid var(--border-subtle)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: 'var(--radius-full)',
+                  background: '#FFFFFF',
+                  border: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#565F6E',
+                }}
+              >
+                <Sliders size={16} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '0.94rem', fontWeight: 700, color: '#252525' }}>
+                  Suppression Telemetry Stream
+                </h3>
+                <p style={{ fontSize: '0.74rem', color: '#565F6E' }}>
+                  Continuous evaluation of unclustered transient pulses
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.74rem',
+                  padding: '3px 12px',
+                  borderRadius: 'var(--radius-full)',
+                  background: '#FFFFFF',
+                  color: '#565F6E',
+                  border: '1px solid var(--border-subtle)',
+                }}
+              >
+                {outlierCount} outliers
+              </span>
+              <button
+                onClick={handleRefreshNoise}
+                title="Re-evaluate thresholds"
+                style={{
+                  padding: '6px',
+                  borderRadius: 'var(--radius-full)',
+                  background: '#FFFFFF',
+                  border: '1px solid var(--border-subtle)',
+                  color: '#565F6E',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <RefreshCw size={14} className={isRefreshingNoise ? 'animate-spin' : ''} />
+              </button>
+            </div>
+          </div>
+
+          {/* Outlier Stream Rows */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {noiseItems.map((item, idx) => (
+              <div
+                key={item.id + idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  background: '#FFFFFF',
+                  border: '1px solid var(--border-subtle)',
+                  fontSize: '0.78rem',
+                  gap: '12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                  <span
+                    className="font-mono"
+                    style={{
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      padding: '2px 10px',
+                      borderRadius: 'var(--radius-full)',
+                      background: '#3D4654',
+                      color: '#FFFFFF',
+                    }}
+                  >
+                    {item.id}
+                  </span>
+                  <span
+                    style={{
+                      color: '#252525',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {item.title}{' '}
+                    <span style={{ color: '#807663', fontFamily: 'var(--font-mono)' }}>
+                      ({item.metric})
+                    </span>
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                  <span
+                    style={{
+                      fontSize: '0.7rem',
+                      padding: '2px 8px',
+                      borderRadius: 'var(--radius-full)',
+                      background: '#FAF8F0',
+                      color: '#565F6E',
+                      fontWeight: 500,
+                      border: '1px solid var(--border-subtle)',
+                    }}
+                  >
+                    {item.badge}
+                  </span>
+                  <span style={{ color: '#807663', fontSize: '0.72rem' }}>
+                    {item.time}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
