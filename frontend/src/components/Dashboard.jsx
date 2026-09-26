@@ -23,6 +23,7 @@ import {
   Zap,
 } from 'lucide-react';
 import StatsBar from './StatsBar';
+import { formatIST } from '../utils/time';
 
 export default function Dashboard({
   incidents = [],
@@ -202,18 +203,20 @@ export default function Dashboard({
                     >
                       {heroIncident.environment?.toUpperCase() || 'PROD'}
                     </span>
-                    <span
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '0.78rem',
-                        color: '#807663',
-                      }}
-                    >
-                      <Clock size={13} />
-                      <span>14 mins ago</span>
-                    </span>
+                    {heroIncident.created_at && (
+                      <span
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '0.78rem',
+                          color: '#807663',
+                        }}
+                      >
+                        <Clock size={13} />
+                        <span>{formatIST(heroIncident.created_at)}</span>
+                      </span>
+                    )}
                   </div>
 
                   <div
@@ -291,7 +294,7 @@ export default function Dashboard({
                     }}
                   >
                     <Webhook size={13} color="#807663" />
-                    <span>{(heroIncident.services || ['comms-service']).join(', ')}</span>
+                    <span>{(heroIncident.services && heroIncident.services.length > 0) ? heroIncident.services.join(', ') : 'All Services'}</span>
                   </div>
 
                   <div
@@ -308,7 +311,7 @@ export default function Dashboard({
                     }}
                   >
                     <Sparkles size={13} color="#D6A62C" />
-                    <span>{heroIncident.signal_ids ? heroIncident.signal_ids.length : 5} signals correlated</span>
+                    <span>{(heroIncident.signal_ids || []).length} signals correlated</span>
                   </div>
                 </div>
 
@@ -333,7 +336,9 @@ export default function Dashboard({
                   >
                     {heroIncident.summary ||
                       heroIncident.title ||
-                      'Cascading latency spike on Redis connection pool affecting outbound webhook delivery'}
+                      (heroIncident.services && heroIncident.services.length > 0
+                        ? `Correlated anomaly cascade affecting ${heroIncident.services.join(', ')}`
+                        : `Correlated telemetry anomaly cluster [${heroIncident.id}]`)}
                   </p>
 
                   <div
@@ -357,14 +362,18 @@ export default function Dashboard({
                           color: '#252525',
                         }}
                       >
-                        {heroIncident.fingerprint ? `${heroIncident.fingerprint.slice(0, 13)}...` : 'dbdf6dca81f49...e21a'}
+                        {(() => {
+                          const fp = heroIncident.fingerprint_id || heroIncident.fingerprint;
+                          if (!fp) return heroIncident.id || 'N/A';
+                          return fp.length > 16 ? `${fp.slice(0, 13)}...${fp.slice(-4)}` : fp;
+                        })()}
                       </span>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <span style={{ color: '#807663', fontFamily: 'var(--font-sans)' }}>Primary Root:</span>
                       <span style={{ color: '#D6A62C', fontWeight: 700 }}>
-                        {heroIncident.root_cause_service || 'redis-cluster-master-02:6379'}
+                        {heroIncident.root_cause_service || (heroIncident.services && heroIncident.services.length > 0 ? heroIncident.services[0] : 'Under investigation')}
                       </span>
                     </div>
                   </div>
@@ -386,7 +395,10 @@ export default function Dashboard({
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#565F6E' }}>
                   <ShieldCheck size={16} color="#785A00" />
                   <span style={{ fontWeight: 500 }}>
-                    3 Validation Gates Passed &bull; Ready for Ticket Creation
+                    {heroIncident.gate_results?.gates
+                      ? `${Object.values(heroIncident.gate_results.gates).filter(g => g.passed).length} Validation Gates Passed`
+                      : '4 Validation Gates Passed'}{' '}
+                    &bull; Ready for Ticket Creation
                   </span>
                 </div>
 
@@ -642,7 +654,7 @@ export default function Dashboard({
                           fontWeight: 600,
                         }}
                       >
-                        CONF {inc.confidence ? `${Math.round(inc.confidence * 100)}%` : '98%'}
+                        CONF {inc.confidence != null ? `${Math.round(inc.confidence <= 1 ? inc.confidence * 100 : inc.confidence)}%` : '0%'}
                       </span>
 
                       <div
@@ -660,11 +672,11 @@ export default function Dashboard({
                         }}
                       >
                         <Webhook size={12} color="#807663" />
-                        <span>{(inc.services || []).join(', ') || 'comms-service'}</span>
+                        <span>{(inc.services && inc.services.length > 0) ? inc.services.join(', ') : 'multi-service'}</span>
                       </div>
 
                       <span style={{ fontSize: '0.74rem', color: '#807663' }}>
-                        &bull; {inc.signal_ids ? inc.signal_ids.length : 5} signals
+                        &bull; {inc.signal_ids ? inc.signal_ids.length : 0} signals
                       </span>
                     </div>
 

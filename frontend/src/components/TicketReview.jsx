@@ -16,9 +16,9 @@ import {
   Layers,
   Shield,
   HelpCircle,
-  Settings,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { formatTimelineEntryIST } from '../utils/time';
 
 export default function TicketReview({
   incident,
@@ -37,33 +37,7 @@ export default function TicketReview({
   const [editedSteps, setEditedSteps] = useState('');
   const [draftsCache, setDraftsCache] = useState({});
 
-  // Jira Cloud Integration Config
-  const [jiraConfig, setJiraConfig] = useState(null);
-  const [isJiraModalOpen, setIsJiraModalOpen] = useState(false);
-  const [jiraForm, setJiraForm] = useState({
-    jira_url: '',
-    jira_email: '',
-    jira_api_token: '',
-    jira_project_key: '',
-    jira_issue_type: 'Task',
-  });
-  const [savingJiraConfig, setSavingJiraConfig] = useState(false);
 
-  // Fetch Jira config on mount
-  useEffect(() => {
-    api.getJiraConfig()
-      .then((cfg) => {
-        setJiraConfig(cfg);
-        setJiraForm({
-          jira_url: cfg.jira_url || '',
-          jira_email: cfg.jira_email || '',
-          jira_api_token: '',
-          jira_project_key: cfg.jira_project_key || '',
-          jira_issue_type: cfg.jira_issue_type || 'Task',
-        });
-      })
-      .catch(() => {});
-  }, []);
 
   // Auto-load or auto-generate draft for the selected incident (cached once)
   const loadDraft = async () => {
@@ -142,33 +116,18 @@ export default function TicketReview({
     }
   };
 
-  // Save Jira Settings
-  const handleSaveJiraConfig = async (e) => {
-    e.preventDefault();
-    setSavingJiraConfig(true);
-    setError(null);
-    try {
-      const updated = await api.updateJiraConfig(jiraForm);
-      setJiraConfig(updated);
-      setIsJiraModalOpen(false);
-    } catch (err) {
-      setError(`Failed to save Jira settings: ${err.message}`);
-    } finally {
-      setSavingJiraConfig(false);
-    }
-  };
 
-  // Publish to Jira (auto-approves unreviewed draft in 1-click for instant publishing)
+
+  // Publish to Jira (only permitted when draft is approved by human operator)
   const handlePublishJira = async () => {
     if (!incident || !draft) return;
+    if (draft.review_status !== 'approved') {
+      setError('Draft must be approved by an operator before publishing to Jira.');
+      return;
+    }
     setPublishing(true);
     setError(null);
     try {
-      // Auto-approve if needed so 1-click publishing works seamlessly
-      if (draft.review_status !== 'approved') {
-        const approvedDraft = await api.submitReview(incident.id, 'approve');
-        setDraft(approvedDraft);
-      }
       const ticket = await api.publishToJira(incident.id);
       if (onTicketPublished) {
         onTicketPublished(ticket);
@@ -370,26 +329,7 @@ export default function TicketReview({
 
             {/* Jira Publish status & controls */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              {/* Configure Jira Modal Trigger */}
-              <button
-                className="btn btn-secondary"
-                onClick={() => setIsJiraModalOpen(true)}
-                title="Configure Live Atlassian Jira Cloud connection"
-                style={{
-                  padding: '6px 12px',
-                  fontSize: '0.75rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  background: jiraConfig?.is_configured ? 'rgba(16, 185, 129, 0.12)' : '#EAE6DB',
-                  border: jiraConfig?.is_configured ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border-subtle)',
-                }}
-              >
-                <Settings size={14} color={jiraConfig?.is_configured ? 'var(--green)' : 'var(--text-muted)'} />
-                <span style={{ color: jiraConfig?.is_configured ? 'var(--green)' : 'var(--text-secondary)' }}>
-                  {jiraConfig?.is_configured ? `Jira: ${jiraConfig.jira_project_key || 'Connected'}` : 'Configure Jira'}
-                </span>
-              </button>
+
 
               {publishedTicket ? (
                 <div
@@ -449,14 +389,20 @@ export default function TicketReview({
                 <button
                   className="btn btn-primary"
                   onClick={handlePublishJira}
-                  disabled={publishing}
-                  title="Automatically approve and publish ticket directly to Jira in one click"
+                  disabled={publishing || draft.review_status !== 'approved'}
+                  title={
+                    draft.review_status === 'approved'
+                      ? 'Publish approved ticket to Jira'
+                      : 'Draft must be approved before publishing to Jira'
+                  }
                   style={{
                     padding: '8px 18px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
                     fontWeight: 600,
+                    opacity: draft.review_status === 'approved' ? 1 : 0.45,
+                    cursor: draft.review_status === 'approved' ? 'pointer' : 'not-allowed',
                   }}
                 >
                   {publishing ? (
@@ -700,7 +646,7 @@ export default function TicketReview({
                       color: 'var(--text-primary)',
                     }}
                   >
-                    {entry}
+                    {formatTimelineEntryIST(entry)}
                   </div>
                 ))}
               </div>
@@ -983,212 +929,7 @@ export default function TicketReview({
         </div>
       )}
 
-      {/* Jira Cloud Settings Modal */}
-      {isJiraModalOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(37, 37, 37, 0.45)',
-            backdropFilter: 'blur(6px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 3000,
-            padding: '20px',
-          }}
-        >
-          <div
-            className="glass-card"
-            style={{
-              width: '100%',
-              maxWidth: '520px',
-              padding: '24px',
-              borderRadius: 'var(--radius-xl)',
-              boxShadow: 'var(--shadow-xl)',
-              background: '#FAF8F0',
-              border: '1px solid rgba(61, 70, 84, 0.18)',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '16px',
-                paddingBottom: '12px',
-                borderBottom: '1px solid var(--border-subtle)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Settings size={20} color="#D6A62C" />
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Atlassian Jira Cloud Settings
-                </h3>
-              </div>
-              <button
-                onClick={() => setIsJiraModalOpen(false)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer',
-                  fontSize: '1.2rem',
-                }}
-              >
-                &times;
-              </button>
-            </div>
 
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.5 }}>
-              Connect your company's Atlassian Jira Cloud account. When you click <strong>Publish to Jira</strong>, tickets will be automatically created on your live board.
-            </p>
-
-            <form onSubmit={handleSaveJiraConfig} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                  Jira Cloud URL
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://your-company.atlassian.net"
-                  value={jiraForm.jira_url}
-                  onChange={(e) => setJiraForm({ ...jiraForm, jira_url: e.target.value })}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    fontSize: '0.82rem',
-                    background: '#FFFFFF',
-                    border: '1px solid rgba(61, 70, 84, 0.2)',
-                    borderRadius: 'var(--radius-md)',
-                    color: 'var(--text-primary)',
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                  Atlassian Email
-                </label>
-                <input
-                  type="email"
-                  placeholder="engineer@your-company.com"
-                  value={jiraForm.jira_email}
-                  onChange={(e) => setJiraForm({ ...jiraForm, jira_email: e.target.value })}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    fontSize: '0.82rem',
-                    background: '#FFFFFF',
-                    border: '1px solid rgba(61, 70, 84, 0.2)',
-                    borderRadius: 'var(--radius-md)',
-                    color: 'var(--text-primary)',
-                  }}
-                />
-              </div>
-
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                    Atlassian API Token
-                  </label>
-                  <a
-                    href="https://id.atlassian.com/manage-profile/security/api-tokens"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ fontSize: '0.7rem', color: '#D6A62C', textDecoration: 'none', fontWeight: 600 }}
-                  >
-                    Generate Token &rarr;
-                  </a>
-                </div>
-                <input
-                  type="password"
-                  placeholder={jiraConfig?.has_token ? '•••••••••••••••• (Leave blank to keep existing)' : 'Paste Atlassian API Token'}
-                  value={jiraForm.jira_api_token}
-                  onChange={(e) => setJiraForm({ ...jiraForm, jira_api_token: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    fontSize: '0.82rem',
-                    background: '#FFFFFF',
-                    border: '1px solid rgba(61, 70, 84, 0.2)',
-                    borderRadius: 'var(--radius-md)',
-                    color: 'var(--text-primary)',
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                    Project Key
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. KAN, OPS, INC"
-                    value={jiraForm.jira_project_key}
-                    onChange={(e) => setJiraForm({ ...jiraForm, jira_project_key: e.target.value.toUpperCase() })}
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      fontSize: '0.82rem',
-                      background: '#FFFFFF',
-                      border: '1px solid rgba(61, 70, 84, 0.2)',
-                      borderRadius: 'var(--radius-md)',
-                      color: 'var(--text-primary)',
-                      textTransform: 'uppercase',
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                    Issue Type
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Bug, Task, Incident"
-                    value={jiraForm.jira_issue_type}
-                    onChange={(e) => setJiraForm({ ...jiraForm, jira_issue_type: e.target.value })}
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      fontSize: '0.82rem',
-                      background: '#FFFFFF',
-                      border: '1px solid rgba(61, 70, 84, 0.2)',
-                      borderRadius: 'var(--radius-md)',
-                      color: 'var(--text-primary)',
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '14px' }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setIsJiraModalOpen(false)}
-                  style={{ padding: '8px 16px', fontSize: '0.82rem' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={savingJiraConfig}
-                  style={{ padding: '8px 18px', fontSize: '0.82rem' }}
-                >
-                  {savingJiraConfig ? 'Connecting...' : 'Save & Connect'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

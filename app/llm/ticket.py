@@ -17,6 +17,7 @@ Rules (PS §7 C5):
 import os
 import json
 import logging
+from datetime import timezone, timedelta
 
 from app.models.signal import Signal
 from app.models.incident import Incident
@@ -24,6 +25,15 @@ from app.models.fingerprint import IncidentFingerprint
 from app.models.ticket import TicketDraft
 
 logger = logging.getLogger(__name__)
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def _to_ist(dt):
+    if dt is None:
+        return ""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(IST)
 
 # ---------------------------------------------------------------------------
 # Anthropic Claude Configuration (PS §2 #8 / §7 C5)
@@ -64,7 +74,7 @@ def build_evidence_package(
     sorted_signals = sorted(signals, key=lambda s: s.timestamp)
 
     timeline = [
-        f"[{s.timestamp.strftime('%H:%M:%S')}] [{s.source.upper()}] {s.service}/{s.component} — {s.signal_type}"
+        f"[{_to_ist(s.timestamp).strftime('%I:%M:%S %p IST')}] [{s.source.upper()}] {s.service}/{s.component} — {s.signal_type}"
         + (f": {s.evidence}" if s.evidence else "")
         + (f" (anomaly_score={s.anomaly_score:.2f})" if s.anomaly_score else "")
         for s in sorted_signals
@@ -99,10 +109,10 @@ def build_evidence_package(
 # LLM system prompt
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """You are an SRE incident analyst. You will receive structured incident evidence.
+SYSTEM_PROMPT = """You are an SRE incident analyst. You will receive structured incident evidence with timestamps in Indian Standard Time (IST).
 
 STRICT RULES:
-1. Use ONLY the evidence provided. Do not invent metrics, timestamps, services, causes, or remediation steps.
+1. Use ONLY the evidence provided. Do not invent metrics, timestamps, services, causes, or remediation steps. When citing times, always use IST.
 2. The "suspected_root_cause" must be clearly marked as UNVERIFIED if it cannot be directly proven from the evidence. Begin with "UNVERIFIED HYPOTHESIS:" if uncertain.
 3. The "investigation_steps" must be actionable and reference only the observed services and components.
 4. Do not speculate beyond what the topology and signal evidence directly support.

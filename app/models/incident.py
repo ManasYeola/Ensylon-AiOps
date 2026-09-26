@@ -20,6 +20,7 @@ class Incident(BaseModel):
     status: str = "open"     # open | reviewing | resolved
 
     fingerprint_id: Optional[str] = None
+    root_cause_service: Optional[str] = None
 
     # Gate results — exposed for UI transparency (PRD §16)
     gate_results: Optional[dict] = None

@@ -99,7 +99,7 @@ export default function StatsBar({
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
           <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#565F6E' }}>
-            ACTIVE
+            INCIDENTS
           </span>
           <div
             style={{

@@ -12,7 +12,7 @@ import os
 import json
 import logging
 import base64
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any
 import httpx
@@ -22,6 +22,8 @@ from app.review.review import is_approved
 from app.jira.mock_jira import publish_to_jira as publish_to_mock, JiraError, OUTPUT_DIR, _ensure_output_dir
 
 logger = logging.getLogger(__name__)
+
+IST = timezone(timedelta(hours=5, minutes=30))
 
 
 def get_jira_config() -> Dict[str, Any]:
@@ -72,6 +74,13 @@ def format_jira_description(draft: TicketDraft, incident_id: Optional[str] = Non
             lines.append(f"# {step}")
         lines.append("")
 
+    if draft.timeline:
+        lines.append("h2. Signal Timeline (IST)")
+        for item in draft.timeline:
+            lines.append(f"* {item}")
+        lines.append("")
+
+    now_ist = datetime.now(timezone.utc).astimezone(IST)
     lines.extend([
         "h2. AIOps Metadata",
         f"* *Incident ID*: {incident_id or 'N/A'}",
@@ -79,7 +88,7 @@ def format_jira_description(draft: TicketDraft, incident_id: Optional[str] = Non
         f"* *Confidence*: {draft.confidence}",
         f"* *Affected Services*: {', '.join(draft.affected_services) if draft.affected_services else 'None'}",
         f"* *Reviewed By*: {draft.edited_by or 'AI-Ops System'}",
-        f"* *Generated At*: {datetime.utcnow().isoformat()}Z",
+        f"* *Generated At*: {now_ist.strftime('%Y-%m-%d %I:%M:%S %p IST')}",
     ])
 
     return "\n".join(lines)

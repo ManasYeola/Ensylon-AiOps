@@ -372,6 +372,12 @@ def _run_pipeline(signals: list[Signal]) -> list[dict]:
             _fingerprints[fp_id] = fp
             continue  # Don't produce a new incident dict
 
+        sorted_signals = sorted(cluster_signals, key=lambda s: s.timestamp) if cluster_signals else []
+        root_service = None
+        if sorted_signals:
+            first_sig = sorted_signals[0]
+            root_service = f"{first_sig.service} ({first_sig.component})" if getattr(first_sig, "component", None) else first_sig.service
+
         inc_id = f"INC-{uuid.uuid4().hex[:6].upper()}"
         incident = Incident(
             id=inc_id,
@@ -382,6 +388,7 @@ def _run_pipeline(signals: list[Signal]) -> list[dict]:
             confidence=conf,
             gate_results=validation.to_dict(),
             fingerprint_id=fp_id,
+            root_cause_service=root_service,
         )
 
         _incidents[inc_id]    = incident
