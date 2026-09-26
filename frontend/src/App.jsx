@@ -133,7 +133,6 @@ export default function App() {
   // Handle selecting an incident
   const handleSelectIncident = (inc) => {
     setSelectedIncident(inc);
-    setActiveTab('details');
   };
 
   // Handle Jira ticket published

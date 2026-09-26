@@ -207,6 +207,7 @@ export default function Dashboard({
       >
         {/* Bento Cell 1: Hero Active Incident Card (Spans 8 cols on desktop) */}
         <div
+          id="hero-incident-card"
           className="glass-card"
           style={{
             gridColumn: 'span 8',
@@ -596,7 +597,10 @@ export default function Dashboard({
                 return (
                   <div
                     key={inc.id}
-                    onClick={() => onSelectIncident(inc)}
+                    onClick={() => {
+                      onSelectIncident(inc);
+                      document.getElementById('hero-incident-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
