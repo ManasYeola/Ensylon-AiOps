@@ -740,6 +740,250 @@ export default function Dashboard({
             ))}
           </div>
         </div>
+
+        {/* Bento Cell 5: All Correlated Incidents Registry (Spans 12 cols) */}
+        <div
+          className="glass-card"
+          style={{
+            gridColumn: 'span 12',
+            padding: '24px 28px',
+            borderRadius: 'var(--radius-xl)',
+            background: '#FAF8F0',
+            border: '1px solid var(--border-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
+              paddingBottom: '14px',
+              borderBottom: '1px solid var(--border-subtle)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div
+                style={{
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: 'var(--radius-full)',
+                  background: 'rgba(214, 166, 44, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#785A00',
+                }}
+              >
+                <Layers size={18} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#252525' }}>
+                    All Correlated Incidents
+                  </h3>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: 'var(--radius-full)',
+                      background: '#3D4654',
+                      color: '#FFFFFF',
+                    }}
+                  >
+                    {filteredIncidents.length} Clusters
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.78rem', color: '#565F6E', marginTop: '2px' }}>
+                  Click any incident cluster to select it, update the Evidence Graph, or jump into Gates & Jira dispatch.
+                </p>
+              </div>
+            </div>
+
+            <span style={{ fontSize: '0.75rem', color: '#807663' }}>
+              Showing {filteredIncidents.length} of {incidents.length} total incidents
+            </span>
+          </div>
+
+          {/* Incidents Table / Cards Feed */}
+          {filteredIncidents.length === 0 ? (
+            <div style={{ padding: '36px', textAlign: 'center', color: '#565F6E' }}>
+              <p style={{ fontSize: '0.9rem', fontWeight: 600 }}>No incidents match the "{filter}" filter.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {filteredIncidents.map((inc) => {
+                const isSelected = (selectedIncident?.id || heroIncident?.id) === inc.id;
+                const isCrit = (inc.severity || 0) >= 60;
+                const isHigh = (inc.severity || 0) >= 50 && !isCrit;
+
+                return (
+                  <div
+                    key={inc.id}
+                    onClick={() => onSelectIncident(inc)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '14px',
+                      padding: '14px 20px',
+                      borderRadius: 'var(--radius-lg)',
+                      background: isSelected ? '#FFFDF7' : '#FFFFFF',
+                      border: isSelected ? '2px solid #D6A62C' : '1px solid var(--border-subtle)',
+                      boxShadow: isSelected ? '0 0 0 1px #D6A62C, var(--shadow-sm)' : 'var(--shadow-sm)',
+                      cursor: 'pointer',
+                      transition: 'all var(--transition-fast)',
+                    }}
+                  >
+                    {/* Left: ID & Metadata */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: '240px' }}>
+                      <span
+                        style={{
+                          width: '10px',
+                          height: '10px',
+                          borderRadius: '50%',
+                          background: isSelected ? '#D6A62C' : 'rgba(61, 70, 84, 0.25)',
+                          flexShrink: 0,
+                        }}
+                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span
+                            className="font-mono"
+                            style={{
+                              fontSize: '0.95rem',
+                              fontWeight: 700,
+                              color: '#252525',
+                            }}
+                          >
+                            {inc.id}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '0.68rem',
+                              padding: '1px 7px',
+                              borderRadius: 'var(--radius-full)',
+                              background: '#EAE6DB',
+                              color: '#565F6E',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {inc.environment?.toUpperCase() || 'PROD'}
+                          </span>
+                          {isSelected && (
+                            <span
+                              style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 700,
+                                padding: '1px 8px',
+                                borderRadius: 'var(--radius-full)',
+                                background: 'rgba(214, 166, 44, 0.2)',
+                                color: '#785A00',
+                                border: '1px solid #D6A62C',
+                              }}
+                            >
+                              CURRENTLY SELECTED
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: '0.74rem', color: '#565F6E' }}>
+                          Root: <strong style={{ color: '#252525' }}>{inc.root_cause_service || (inc.services || ['unknown'])[0]}</strong>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Middle: Badges & Summary */}
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px', flex: 1, minWidth: '280px' }}>
+                      <span
+                        style={{
+                          fontSize: '0.74rem',
+                          fontWeight: 700,
+                          padding: '3px 10px',
+                          borderRadius: 'var(--radius-full)',
+                          background: isCrit ? '#BA1A1A' : isHigh ? '#D6A62C' : '#3D4654',
+                          color: '#FFFFFF',
+                        }}
+                      >
+                        {isCrit ? 'CRITICAL' : isHigh ? 'HIGH' : 'MEDIUM'} {(inc.severity || 50.0).toFixed(1)}
+                      </span>
+
+                      <span
+                        style={{
+                          fontSize: '0.74rem',
+                          padding: '3px 10px',
+                          borderRadius: 'var(--radius-full)',
+                          background: '#F4F1E8',
+                          color: '#785A00',
+                          border: '1px solid var(--border-subtle)',
+                          fontWeight: 600,
+                        }}
+                      >
+                        CONF {inc.confidence ? `${Math.round(inc.confidence * 100)}%` : '98%'}
+                      </span>
+
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          fontSize: '0.74rem',
+                          fontFamily: 'var(--font-mono)',
+                          color: '#565F6E',
+                          padding: '3px 10px',
+                          borderRadius: 'var(--radius-full)',
+                          background: '#F4F1E8',
+                          border: '1px solid var(--border-subtle)',
+                        }}
+                      >
+                        <Webhook size={12} color="#807663" />
+                        <span>{(inc.services || []).join(', ') || 'comms-service'}</span>
+                      </div>
+
+                      <span style={{ fontSize: '0.74rem', color: '#807663' }}>
+                        &bull; {inc.signal_ids ? inc.signal_ids.length : 5} signals
+                      </span>
+                    </div>
+
+                    {/* Right: Action Button */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectIncident(inc);
+                          if (onNavigate) onNavigate('details');
+                        }}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: 'var(--radius-full)',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          background: isSelected ? '#D6A62C' : '#FAF8F0',
+                          color: isSelected ? '#FFFFFF' : '#252525',
+                          borderColor: isSelected ? '#D6A62C' : 'rgba(61, 70, 84, 0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                        }}
+                      >
+                        <span>Investigate</span>
+                        <ArrowRight size={13} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
