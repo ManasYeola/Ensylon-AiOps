@@ -1,30 +1,26 @@
 """
-PII Redaction Engine — PRD §24.
+PII Redaction Engine — PRD §24 & Problem Statement Section 2/3.
 
 Strips or replaces all personal / sensitive information BEFORE any further
-processing or storage.  Call `redact(text)` on any raw string that came from
-an external source (log line, alarm description, annotation, etc.).
+processing or storage. Call `redact_text(text)` or `redact_dict(data)` on
+any raw string or payload from external monitoring streams.
 
 Sensitive categories handled:
-  - Email addresses           -> [REDACTED_EMAIL]
-  - IPv4 / IPv6 addresses     -> [REDACTED_IP]
-  - AWS Account IDs (12-digit)-> [REDACTED_ACCOUNT_ID]
   - AWS ARNs                  -> [REDACTED_ARN]
-  - Session tokens            -> [REDACTED_SESSION]
-  - App account numbers       -> [REDACTED_ACCOUNT]
-  - Phone numbers             -> [REDACTED_PHONE]
-  - API keys / bearer tokens  -> [REDACTED_TOKEN]
-  - Credit card numbers       -> [REDACTED_PAYMENT]
   - Service-account emails    -> [REDACTED_SVC_ACCOUNT]
-  - Passwords/secrets in JSON -> [REDACTED_SECRET]
-
-Design rules:
-  - Redact BEFORE storage.  Never log unredacted PII anywhere.
-  - Redact BEFORE sending to LLM.
-  - Replacements are deterministic — same pattern gives same placeholder.
-  - Order matters: more specific patterns come before general ones.
+  - Customer emails           -> [REDACTED_EMAIL]
+  - Session tokens            -> [REDACTED_SESSION]
+  - Bearer / API keys         -> [REDACTED_TOKEN]
+  - Credit card numbers       -> [REDACTED_PAYMENT]
+  - Standalone Account IDs    -> [REDACTED_ACCOUNT_ID]
+  - App account numbers       -> [REDACTED_ACCOUNT]
+  - Customer personal names   -> [REDACTED_NAME]
+  - IPv6 addresses            -> [REDACTED_IP]
+  - IPv4 addresses            -> [REDACTED_IP]
+  - Phone numbers             -> [REDACTED_PHONE]
 """
 import re
+from typing import Any, Dict, List, Optional
 
 # ---------------------------------------------------------------------------
 # Pattern registry — (compiled_pattern, replacement) applied in order.
@@ -32,7 +28,7 @@ import re
 # ---------------------------------------------------------------------------
 
 _RULES: list[tuple[re.Pattern, str]] = [
-    # 1. AWS ARNs  (must come before bare 12-digit account ID)
+    # 1. AWS ARNs (must come before bare 12-digit account ID)
     (
         re.compile(
             r"arn:[a-z0-9\-]+:[a-z0-9\-]+:[a-z0-9\-]*:\d{12}:[^\s,\"'<>]+",
@@ -40,7 +36,7 @@ _RULES: list[tuple[re.Pattern, str]] = [
         ),
         "[REDACTED_ARN]",
     ),
-    # 2. Service-account emails  (svc-name@domain.tld)
+    # 2. Service-account emails (svc-name@domain.tld)
     (
         re.compile(
             r"\bsvc-[\w.\-]+@[\w.\-]+\.[a-z]{2,}\b",
@@ -48,17 +44,17 @@ _RULES: list[tuple[re.Pattern, str]] = [
         ),
         "[REDACTED_SVC_ACCOUNT]",
     ),
-    # 3. Generic email addresses
+    # 3. Generic customer/user email addresses
     (
         re.compile(
             r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b",
         ),
         "[REDACTED_EMAIL]",
     ),
-    # 4. Session / auth tokens  (sess_xxx, tok_xxx, jwt_xxx …)
+    # 4. Session / auth tokens (sess_xxx, tok_xxx, jwt_xxx, etc.)
     (
         re.compile(
-            r"\b(?:sess|tok|token|jwt|auth)[_\-]?[A-Za-z0-9_\-]{8,}\b",
+            r"\b(?:sess|tok|token|jwt|auth)[_\-][A-Za-z0-9_\-]{4,}\b",
             re.IGNORECASE,
         ),
         "[REDACTED_SESSION]",
@@ -71,36 +67,36 @@ _RULES: list[tuple[re.Pattern, str]] = [
         ),
         "[REDACTED_TOKEN]",
     ),
-    # 6. Generic long hex secrets (32+ chars that look like keys)
+    # 6. Generic long hex secrets (32+ chars)
     (
         re.compile(
             r"\b[A-Fa-f0-9]{32,}\b",
         ),
         "[REDACTED_TOKEN]",
     ),
-    # 7. Password / secret key-value pairs in structured text / JSON
+    # 7. Password / secret key-value pairs
     (
         re.compile(
-            r'(?:password|passwd|secret|credential)["s]*[:=]["s]*[^s,"\'<>]+',
+            r'(?:password|passwd|secret|credential)["\s]*[:=]["\s]*[^\s,"\'<>]+',
             re.IGNORECASE,
         ),
         "[REDACTED_SECRET]",
     ),
-    # 8. Credit card numbers  (13-16 digits, optionally separated by spaces/dashes)
+    # 8. Credit card numbers (13-16 digits)
     (
         re.compile(
             r"\b(?:\d[ \-]?){13,16}\b",
         ),
         "[REDACTED_PAYMENT]",
     ),
-    # 9. AWS Account IDs  (standalone 12-digit numbers)
+    # 9. AWS Account IDs (standalone 12-digit numbers)
     (
         re.compile(
             r"\b\d{12}\b",
         ),
         "[REDACTED_ACCOUNT_ID]",
     ),
-    # 10. App-level account numbers  (ACC-NNNNN pattern)
+    # 10. App-level account numbers (ACC-NNNNN pattern)
     (
         re.compile(
             r"\bACC-\d+\b",
@@ -108,21 +104,29 @@ _RULES: list[tuple[re.Pattern, str]] = [
         ),
         "[REDACTED_ACCOUNT]",
     ),
-    # 11. IPv6 addresses
+    # 11. Customer personal full names (e.g. "Last affected user: John Doe")
+    (
+        re.compile(
+            r"(\b(?:user|customer|name|affected user)\s*[:=]\s*)([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b",
+            re.IGNORECASE,
+        ),
+        r"\g<1>[REDACTED_NAME]",
+    ),
+    # 12. IPv6 addresses
     (
         re.compile(
             r"\b(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}\b",
         ),
         "[REDACTED_IP]",
     ),
-    # 12. IPv4 addresses
+    # 13. IPv4 addresses
     (
         re.compile(
             r"\b(?:\d{1,3}\.){3}\d{1,3}\b",
         ),
         "[REDACTED_IP]",
     ),
-    # 13. Phone numbers  (international and local formats)
+    # 14. Phone numbers
     (
         re.compile(
             r"\b(?:\+\d{1,3}[\s.\-]?)?(?:\(?\d{3}\)?[\s.\-]?)?\d{3}[\s.\-]?\d{4}\b",
@@ -132,13 +136,9 @@ _RULES: list[tuple[re.Pattern, str]] = [
 ]
 
 
-def redact(text: str) -> str:
+def redact_text(text: str) -> str:
     """
-    Apply all PII redaction rules to `text` and return the sanitised string.
-
-    Example:
-        >>> redact("user neha.joshi@acmecorp.com ip:10.0.2.83 sess_kd3dxt ACC-10000055")
-        'user [REDACTED_EMAIL] ip:[REDACTED_IP] [REDACTED_SESSION] [REDACTED_ACCOUNT]'
+    Apply all PII redaction rules to text and return the sanitized string.
     """
     if not text:
         return text
@@ -148,28 +148,27 @@ def redact(text: str) -> str:
     return result
 
 
-def redact_dict(data: dict, fields: list[str] | None = None) -> dict:
+# Standard alias
+redact = redact_text
+
+
+def redact_dict(data: Any, fields: Optional[List[str]] = None) -> Any:
     """
-    Recursively redact PII from a dictionary.
-
-    If `fields` is supplied, only those top-level keys are redacted.
-    Otherwise every string value at any depth passes through `redact()`.
-
-    Args:
-        data:   Raw dict (CloudWatch event, Grafana payload, etc.).
-        fields: Optional list of field names to redact.  None = all fields.
-
-    Returns:
-        New dict with all sensitive values replaced by placeholders.
+    Recursively redact PII from a dictionary, list, or primitive value.
+    If fields is supplied, only those top-level keys in dictionaries are redacted.
+    Otherwise every string value at any depth passes through redact_text.
     """
-    def _walk(obj):
+    def _walk(obj: Any) -> Any:
         if isinstance(obj, dict):
             return {k: _walk(v) for k, v in obj.items()}
         if isinstance(obj, list):
             return [_walk(item) for item in obj]
         if isinstance(obj, str):
-            return redact(obj)
+            return redact_text(obj)
         return obj
+
+    if not isinstance(data, dict):
+        return _walk(data)
 
     if fields is None:
         return _walk(data)
@@ -177,5 +176,5 @@ def redact_dict(data: dict, fields: list[str] | None = None) -> dict:
     result = dict(data)
     for key in fields:
         if key in result and isinstance(result[key], str):
-            result[key] = redact(result[key])
+            result[key] = redact_text(result[key])
     return result
