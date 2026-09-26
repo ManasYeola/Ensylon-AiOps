@@ -57,11 +57,11 @@ from app.correlation.union_find import build_candidate_clusters
 from app.correlation.gates import validate_cluster
 from app.scoring.severity import calculate_severity
 from app.scoring.confidence import calculate_confidence
-from app.fingerprint.fingerprint import generate_fingerprint, fingerprint_hash
+from app.fingerprint.fingerprint import generate_fingerprint, fingerprint_hash, similarity_score
 from app.llm.ticket import generate_ticket_draft
 from app.review.review import review_ticket, is_approved
 from app.jira.mock_jira import publish_to_jira, get_mock_tickets, JiraError
-from app.config import load_config, get_detection_cfg, get_correlation_cfg
+from app.config import load_config, get_detection_cfg, get_correlation_cfg, get_fingerprint_cfg
 from app.detection.metrics import score_metric_signal
 from app.detection.logs import score_log_signal, LogWindowState, make_log_window_state
 from app.ingestion.sse_client import consume_sse_stream, SIMULATOR_STREAMS
@@ -245,12 +245,20 @@ def _run_pipeline(signals: list[Signal]) -> list[dict]:
     cfg = get_correlation_cfg()
     window_minutes = cfg.get("window_minutes", 5)
     window_seconds = window_minutes * 60
-    now = time.time()
+
+    if not signals:
+        return []
 
     # 1. Filter: anomalous AND inside temporal window
+    # Anchor to event stream reference time so slight host clock skew / simulator replay
+    # doesn't drop signals prematurely, while falling back to system clock.
+    latest_signal_ts = max((s.timestamp.timestamp() for s in signals), default=time.time())
+    now = time.time()
+    ref_ts = latest_signal_ts if abs(latest_signal_ts - now) < 86400 else now
+
     anomalous = [
         s for s in signals
-        if _is_anomalous(s) and (now - s.timestamp.timestamp()) <= window_seconds
+        if _is_anomalous(s) and (ref_ts - s.timestamp.timestamp()) <= window_seconds
     ]
     if not anomalous:
         return []
@@ -276,20 +284,38 @@ def _run_pipeline(signals: list[Signal]) -> list[dict]:
         sev  = calculate_severity(cluster_signals)
         conf = calculate_confidence(internal_edges, len(cluster_signals))
 
-        # 6. Deduplication: compute fingerprint hash and skip if already active
+        # 6. Deduplication & Continuation: compute fingerprint hash and check similarity
         fp    = generate_fingerprint(cluster_signals, sev, conf)
         fp_id = fingerprint_hash(fp)
 
-        if fp_id in _fp_to_incident:
-            # Same structural fingerprint → extend the existing incident's signal set
-            existing_id = _fp_to_incident[fp_id]
-            if existing_id in _incidents:
-                existing = _incidents[existing_id]
-                # Merge any new signal IDs into the existing incident
-                merged_ids = list(dict.fromkeys(existing.signal_ids + cluster_ids))
-                _incidents[existing_id] = existing.model_copy(
-                    update={"signal_ids": merged_ids}
-                )
+        # Check exact hash first
+        matched_incident_id = _fp_to_incident.get(fp_id)
+
+        # If not an exact hash match, check structural similarity against active fingerprints (PRD §8 / §19)
+        if not matched_incident_id and _fingerprints:
+            fp_cfg = get_fingerprint_cfg()
+            sim_threshold = fp_cfg.get("similarity_threshold", 0.70)
+            best_score = 0.0
+            best_fp_id = None
+            for existing_fp_id, existing_fp in _fingerprints.items():
+                score = similarity_score(fp, existing_fp)
+                if score > best_score:
+                    best_score = score
+                    best_fp_id = existing_fp_id
+
+            if best_fp_id and best_score >= sim_threshold:
+                matched_incident_id = _fp_to_incident.get(best_fp_id)
+
+        if matched_incident_id and matched_incident_id in _incidents:
+            # Same structural fingerprint or high similarity → extend the existing incident's signal set
+            existing = _incidents[matched_incident_id]
+            merged_ids = list(dict.fromkeys(existing.signal_ids + cluster_ids))
+            _incidents[matched_incident_id] = existing.model_copy(
+                update={"signal_ids": merged_ids}
+            )
+            # Map this fingerprint variant to the same incident for O(1) subsequent lookups
+            _fp_to_incident[fp_id] = matched_incident_id
+            _fingerprints[fp_id] = fp
             continue  # Don't produce a new incident dict
 
         inc_id = f"INC-{uuid.uuid4().hex[:6].upper()}"
@@ -327,13 +353,15 @@ async def _ingest_signal(signal: Signal) -> dict:
     scored = _detect_and_score(signal)
     _signals[scored.id] = scored
 
-    # Schedule a pipeline run at window boundary rather than running for
-    # every single signal — prevents O(N²) re-correlation on every arrival.
+    # Schedule a pipeline run. When an anomalous signal arrives, trigger correlation
+    # with a short debounce (5s) so incidents populate promptly without stalling 5 minutes.
     cfg = get_correlation_cfg()
     window_seconds = cfg.get("window_minutes", 5) * 60
     elapsed_since_last_run = time.time() - _last_pipeline_run_ts
+    is_anomaly = _is_anomalous(scored)
+    min_interval = 5.0 if is_anomaly else window_seconds
 
-    if not _pending_pipeline and elapsed_since_last_run >= window_seconds:
+    if not _pending_pipeline and elapsed_since_last_run >= min_interval:
         _pending_pipeline = True
         asyncio.get_event_loop().call_soon(lambda: asyncio.ensure_future(_windowed_pipeline_run()))
 

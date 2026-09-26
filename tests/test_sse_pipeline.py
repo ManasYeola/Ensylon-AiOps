@@ -458,3 +458,68 @@ def test_simulator_streams_has_all_three_urls():
     for name, url in SIMULATOR_STREAMS.items():
         assert url.startswith("https://"), f"Stream {name} URL must be HTTPS"
         assert "ensylon.com" in url, f"Stream {name} URL must point to Ensylon host"
+
+
+def test_pipeline_fuzzy_fingerprint_deduplication():
+    """
+    If two clusters have slightly different hashes (e.g. template ID T001 vs T002)
+    but high structural similarity (>= 0.70), they should attach to the existing
+    incident rather than creating a duplicate.
+    """
+    import app.main as main_module
+
+    main_module._signals.clear()
+    main_module._incidents.clear()
+    main_module._fp_to_incident.clear()
+    main_module._fingerprints.clear()
+    main_module._graphs.clear()
+
+    now = datetime.now(timezone.utc)
+    cluster_a = [
+        Signal(
+            timestamp=now + timedelta(seconds=i * 10),
+            source="application_logs",
+            environment="prod",
+            region="ap-south-1",
+            service="payments-service",
+            component="db-connection-pool",
+            signal_type="error_log_burst",
+            anomaly_score=0.85,
+            template_id="T001",
+            evidence=f"[REDACTED] Error A ({i})",
+        )
+        for i in range(5)
+    ]
+    for s in cluster_a:
+        main_module._signals[s.id] = s
+
+    incidents_a = main_module._run_pipeline(cluster_a)
+    assert len(incidents_a) == 1
+    inc_id = incidents_a[0]["id"]
+
+    # Cluster B has different template_id (T002) so SHA-256 hash is completely different,
+    # but service, component, environment are identical (similarity > 0.70).
+    cluster_b = [
+        Signal(
+            timestamp=now + timedelta(seconds=60 + i * 10),
+            source="application_logs",
+            environment="prod",
+            region="ap-south-1",
+            service="payments-service",
+            component="db-connection-pool",
+            signal_type="error_log_burst",
+            anomaly_score=0.85,
+            template_id="T002",
+            evidence=f"[REDACTED] Error B ({i})",
+        )
+        for i in range(5)
+    ]
+    for s in cluster_b:
+        main_module._signals[s.id] = s
+
+    incidents_b = main_module._run_pipeline(cluster_b)
+    # Should attach to existing incident without creating a new one
+    assert len(incidents_b) == 0
+    assert len(main_module._incidents) == 1
+    assert len(main_module._incidents[inc_id].signal_ids) == 10
+
