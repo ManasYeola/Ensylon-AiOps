@@ -15,6 +15,7 @@ import {
   Server,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
   Terminal,
   XCircle,
   Zap,
@@ -780,10 +781,13 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
               background: '#FFFFFF',
               borderColor: 'rgba(61, 70, 84, 0.25)',
               color: '#252525',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
             }}
           >
-            <FileText size={16} />
-            <span>Review Synthesized Ticket Draft</span>
+            <Sparkles size={15} color="#D6A62C" />
+            <span>Generate / Review Ticket</span>
           </button>
 
           <button

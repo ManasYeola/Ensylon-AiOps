@@ -60,6 +60,14 @@ export default function App() {
           setSelectedIncident((prev) => {
             if (prev) {
               const matched = loadedIncidents.find((i) => i.id === prev.id);
+              if (
+                matched &&
+                matched.id === prev.id &&
+                matched.signal_ids?.length === prev.signal_ids?.length &&
+                matched.severity === prev.severity
+              ) {
+                return prev;
+              }
               return matched || loadedIncidents[0];
             }
             return loadedIncidents[0];

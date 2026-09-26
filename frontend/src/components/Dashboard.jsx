@@ -32,7 +32,7 @@ export default function Dashboard({
   jiraTicketsCount = 0,
   onNavigate,
 }) {
-  const [filter, setFilter] = useState('active'); // active, all, critical, prod
+  const [filter, setFilter] = useState('all'); // default to all so user sees all incidents!
   const [timeRange, setTimeRange] = useState('Last 6 hours');
   const [isRefreshingNoise, setIsRefreshingNoise] = useState(false);
 
@@ -48,10 +48,10 @@ export default function Dashboard({
 
   // Filtered incidents
   const filteredIncidents = incidents.filter((inc) => {
-    if (filter === 'active') return inc.status !== 'resolved';
-    if (filter === 'critical') return (inc.severity || 0) >= 50;
+    if (filter === 'critical') return (inc.severity || 0) >= 60;
+    if (filter === 'high') return (inc.severity || 0) < 60;
     if (filter === 'prod') return inc.environment === 'prod' || !inc.environment;
-    return true;
+    return true; // 'all'
   });
 
   // Current primary incident to show in the Hero Card
@@ -102,6 +102,10 @@ export default function Dashboard({
 
   const outlierCount = rejectedSignals.length > 0 ? rejectedSignals.length : 496;
 
+  const critCount = incidents.filter((i) => (i.severity || 0) >= 60).length;
+  const highCount = incidents.filter((i) => (i.severity || 0) < 60).length;
+  const prodCount = incidents.filter((i) => i.environment === 'prod' || !i.environment).length;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Bento Top Control Bar (Pills & Time Range) */}
@@ -117,10 +121,10 @@ export default function Dashboard({
         {/* Filter Pills */}
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
           {[
-            { id: 'active', label: `Active Incidents (${incidents.filter((i) => i.status !== 'resolved').length || 1})`, hasPulse: true },
-            { id: 'all', label: `All Incidents (${incidents.length || 12})` },
-            { id: 'critical', label: `High / Critical (${incidents.filter((i) => (i.severity || 0) >= 50).length || 1})` },
-            { id: 'prod', label: `Production Only (${incidents.filter((i) => i.environment === 'prod').length || 1})` },
+            { id: 'all', label: `All Incidents (${incidents.length})`, hasPulse: true },
+            { id: 'critical', label: `Critical Severity (≥60) (${critCount})` },
+            { id: 'high', label: `High / Medium (<60) (${highCount})` },
+            { id: 'prod', label: `Production Only (${prodCount})` },
           ].map((btn) => {
             const isActive = filter === btn.id;
             return (
@@ -442,26 +446,51 @@ export default function Dashboard({
                   </span>
                 </div>
 
-                <button
-                  className="btn btn-primary"
-                  onClick={() => {
-                    onSelectIncident(heroIncident);
-                    if (onNavigate) onNavigate('details');
-                  }}
-                  style={{
-                    padding: '9px 22px',
-                    borderRadius: 'var(--radius-full)',
-                    fontSize: '0.85rem',
-                    background: '#D6A62C',
-                    color: '#FFFFFF',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <span>Investigate Incident</span>
-                  <ArrowRight size={16} />
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      onSelectIncident(heroIncident);
+                      if (onNavigate) onNavigate('details');
+                    }}
+                    style={{
+                      padding: '8px 18px',
+                      borderRadius: 'var(--radius-full)',
+                      fontSize: '0.82rem',
+                      background: '#FFFFFF',
+                      borderColor: 'rgba(61, 70, 84, 0.25)',
+                      color: '#252525',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <span>Investigate</span>
+                    <ArrowRight size={14} />
+                  </button>
+
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => {
+                      onSelectIncident(heroIncident);
+                      if (onNavigate) onNavigate('review');
+                    }}
+                    style={{
+                      padding: '8px 20px',
+                      borderRadius: 'var(--radius-full)',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      background: '#D6A62C',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <Sparkles size={14} />
+                    <span>Generate Ticket</span>
+                  </button>
+                </div>
               </div>
             </>
           ) : (
@@ -563,10 +592,10 @@ export default function Dashboard({
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#3D4654' }}>
-                  Jira Auto-Draft
+                  Jira Ticket Review
                 </span>
                 <span style={{ fontSize: '0.68rem', color: '#807663' }}>
-                  Ready upon manual trigger
+                  Requires manual operator trigger
                 </span>
               </div>
             </div>
@@ -952,7 +981,7 @@ export default function Dashboard({
                       </span>
                     </div>
 
-                    {/* Right: Action Button */}
+                    {/* Right: Action Buttons */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <button
                         className="btn btn-secondary"
@@ -966,9 +995,9 @@ export default function Dashboard({
                           borderRadius: 'var(--radius-full)',
                           fontSize: '0.78rem',
                           fontWeight: 600,
-                          background: isSelected ? '#D6A62C' : '#FAF8F0',
-                          color: isSelected ? '#FFFFFF' : '#252525',
-                          borderColor: isSelected ? '#D6A62C' : 'rgba(61, 70, 84, 0.25)',
+                          background: '#FAF8F0',
+                          color: '#252525',
+                          borderColor: 'rgba(61, 70, 84, 0.25)',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '5px',
@@ -976,6 +1005,30 @@ export default function Dashboard({
                       >
                         <span>Investigate</span>
                         <ArrowRight size={13} />
+                      </button>
+
+                      <button
+                        className="btn btn-primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectIncident(inc);
+                          if (onNavigate) onNavigate('review');
+                        }}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: 'var(--radius-full)',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          background: isSelected ? '#D6A62C' : '#FAF8F0',
+                          color: isSelected ? '#FFFFFF' : '#785A00',
+                          borderColor: '#D6A62C',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                        }}
+                      >
+                        <Sparkles size={13} color={isSelected ? '#FFFFFF' : '#785A00'} />
+                        <span>Generate Ticket</span>
                       </button>
                     </div>
                   </div>
