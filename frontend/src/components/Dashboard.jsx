@@ -506,6 +506,7 @@ export default function Dashboard({
             signalsCount={allSignals.length}
             incidents={incidents}
             jiraTicketsCount={jiraTicketsCount}
+            outlierCount={outlierCount}
           />
         </div>
 

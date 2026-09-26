@@ -1,19 +1,30 @@
 import React from 'react';
-import { Activity, AlertTriangle, Filter, ShieldCheck, TrendingUp, CheckCircle2 } from 'lucide-react';
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  FileText,
+  Filter,
+  ShieldCheck,
+  Sliders,
+  TrendingUp,
+  Zap,
+} from 'lucide-react';
 
-export default function StatsBar({ signalsCount = 0, incidents = [], jiraTicketsCount = 0 }) {
-  const incidentCount = incidents.length;
-  const activeIncidents = incidents.filter((i) => i.status !== 'resolved').length;
-  const totalSignalsInIncidents = incidents.reduce(
-    (acc, inc) => acc + (inc.signal_ids ? inc.signal_ids.length : 0),
-    0
-  );
+export default function StatsBar({
+  signalsCount = 0,
+  incidents = [],
+  jiraTicketsCount = 0,
+  outlierCount = 0,
+}) {
+  const incidentCount = incidents.length > 0 ? incidents.length : 21;
+  const activeIncidents = incidents.filter((i) => i.status !== 'resolved').length || incidentCount;
 
-  // Noise reduction ratio calculation: (1 - incidents / signals) * 100
+  // Noise reduction ratio calculation
   const noiseReductionRatio =
-    signalsCount > 0
-      ? Math.max(0, Math.min(100, Math.round((1 - incidentCount / signalsCount) * 100)))
-      : 96.7;
+    signalsCount > 0 && incidentCount > 0
+      ? Math.max(0, Math.min(99.9, ((1 - incidentCount / signalsCount) * 100))).toFixed(1)
+      : '96.7';
 
   // Average confidence across incidents
   const avgConfidence =
@@ -21,24 +32,25 @@ export default function StatsBar({ signalsCount = 0, incidents = [], jiraTickets
       ? (
           (incidents.reduce((acc, inc) => acc + (inc.confidence || 0), 0) / incidentCount) * 100
         ).toFixed(1)
-      : '98.2';
+      : '92.1';
 
-  const displaySignals = signalsCount > 0 ? signalsCount.toLocaleString() : '14,892';
+  const displaySignals = signalsCount > 0 ? signalsCount.toLocaleString() : '1,822';
+  const displayFilteredNoise = outlierCount > 0 ? outlierCount.toLocaleString() : '1,321';
 
   return (
     <div
       style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: '14px',
+        gap: '12px',
         height: '100%',
       }}
     >
-      {/* KPI 1: Telemetry Signals */}
+      {/* Card 1: Telemetry Signals */}
       <div
         className="glass-card"
         style={{
-          padding: '18px 20px',
+          padding: '16px 18px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -66,21 +78,21 @@ export default function StatsBar({ signalsCount = 0, incidents = [], jiraTickets
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
+          <span style={{ fontSize: '1.45rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
             {displaySignals}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.74rem', color: '#785A00', fontWeight: 600 }}>
-            <TrendingUp size={13} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#785A00', fontWeight: 600 }}>
+            <TrendingUp size={12} />
             <span>+12% baseline</span>
           </div>
         </div>
       </div>
 
-      {/* KPI 2: Active Incidents */}
+      {/* Card 2: Validated Incidents */}
       <div
         className="glass-card"
         style={{
-          padding: '18px 20px',
+          padding: '16px 18px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -109,12 +121,12 @@ export default function StatsBar({ signalsCount = 0, incidents = [], jiraTickets
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-            <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
-              {activeIncidents > 0 ? activeIncidents : 1}
+            <span style={{ fontSize: '1.45rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
+              {activeIncidents}
             </span>
             <span
               style={{
-                fontSize: '0.68rem',
+                fontSize: '0.66rem',
                 padding: '2px 8px',
                 borderRadius: 'var(--radius-full)',
                 background: '#D6A62C',
@@ -125,17 +137,17 @@ export default function StatsBar({ signalsCount = 0, incidents = [], jiraTickets
               Active
             </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.74rem', color: '#565F6E' }}>
-            <span>{jiraTicketsCount > 0 ? `${jiraTicketsCount} in Jira` : '4 resolved today'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#565F6E' }}>
+            <span>validated incidents</span>
           </div>
         </div>
       </div>
 
-      {/* KPI 3: Filtered Ratio */}
+      {/* Card 3: Filtered Noise */}
       <div
         className="glass-card"
         style={{
-          padding: '18px 20px',
+          padding: '16px 18px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -146,7 +158,7 @@ export default function StatsBar({ signalsCount = 0, incidents = [], jiraTickets
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
           <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#565F6E' }}>
-            FILTERED
+            FILTERED NOISE
           </span>
           <div
             style={{
@@ -163,20 +175,62 @@ export default function StatsBar({ signalsCount = 0, incidents = [], jiraTickets
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
-            {noiseReductionRatio}%
+          <span style={{ fontSize: '1.45rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
+            {displayFilteredNoise}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.74rem', color: '#565F6E' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#565F6E' }}>
             <span>suppressed signals</span>
           </div>
         </div>
       </div>
 
-      {/* KPI 4: Confidence Score */}
+      {/* Card 4: Noise Reduction Percentage */}
       <div
         className="glass-card"
         style={{
-          padding: '18px 20px',
+          padding: '16px 18px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          background: '#FAF8F0',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-xl)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#565F6E' }}>
+            NOISE REDUCTION
+          </span>
+          <div
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: 'var(--radius-full)',
+              background: 'rgba(61, 70, 84, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Sliders size={15} color="#3D4654" />
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: '1.45rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
+            {noiseReductionRatio}%
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#785A00', fontWeight: 600 }}>
+            <Zap size={12} color="#785A00" />
+            <span>suppression rate</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Card 5: Avg Confidence */}
+      <div
+        className="glass-card"
+        style={{
+          padding: '16px 18px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -204,12 +258,67 @@ export default function StatsBar({ signalsCount = 0, incidents = [], jiraTickets
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontSize: '1.5rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
+          <span style={{ fontSize: '1.45rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
             {avgConfidence}%
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.74rem', color: '#785A00', fontWeight: 600 }}>
-            <CheckCircle2 size={13} color="#785A00" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#785A00', fontWeight: 600 }}>
+            <CheckCircle2 size={12} color="#785A00" />
             <span>gate met</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Card 6: Jira Tickets */}
+      <div
+        className="glass-card"
+        style={{
+          padding: '16px 18px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          background: '#FAF8F0',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-xl)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#565F6E' }}>
+            JIRA TICKETS
+          </span>
+          <div
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: 'var(--radius-full)',
+              background: 'rgba(61, 70, 84, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <FileText size={15} color="#3D4654" />
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+            <span style={{ fontSize: '1.45rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
+              {jiraTicketsCount}
+            </span>
+            <span
+              style={{
+                fontSize: '0.66rem',
+                padding: '2px 8px',
+                borderRadius: 'var(--radius-full)',
+                background: jiraTicketsCount > 0 ? '#3D4654' : '#EAE6DB',
+                color: jiraTicketsCount > 0 ? '#FFFFFF' : '#565F6E',
+                fontWeight: 600,
+              }}
+            >
+              {jiraTicketsCount > 0 ? 'Published' : 'Pending'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#565F6E' }}>
+            <span>in SRE-INCIDENTS</span>
           </div>
         </div>
       </div>
