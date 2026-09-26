@@ -24,7 +24,7 @@ def _build_service_path(signals: list[Signal]) -> list[str]:
     Starts from the service that appears earliest (upstream in topology).
     """
     topo = load_topology()
-    services = list({s.service for s in signals})
+    services = sorted({s.service for s in signals})
 
     # Sort by upstream position: service with no incoming edges from our set first
     def upstream_count(svc: str) -> int:

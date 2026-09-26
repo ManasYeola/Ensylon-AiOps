@@ -496,10 +496,13 @@ async def _windowed_pipeline_run() -> None:
             (s.timestamp.timestamp() for s in _signals.values()),
             default=time.time(),
         )
-        signals_snapshot = [
-            s for s in _signals.values()
-            if (ref_ts - s.timestamp.timestamp()) <= window_seconds
-        ]
+        signals_snapshot = sorted(
+            (
+                s for s in _signals.values()
+                if (ref_ts - s.timestamp.timestamp()) <= window_seconds
+            ),
+            key=lambda s: (s.timestamp, s.id),
+        )
         new_incidents = await loop.run_in_executor(None, _run_pipeline, signals_snapshot)
         _last_pipeline_run_ts = time.time()
 
@@ -683,7 +686,7 @@ async def ingest_batch(signals: list[Signal]) -> dict:
         scored = _detect_and_score(s)
         _signals[scored.id] = scored
 
-    incidents = _run_pipeline(list(_signals.values()))
+    incidents = _run_pipeline(sorted(_signals.values(), key=lambda s: (s.timestamp, s.id)))
     return {
         "status": "processed",
         "signals_ingested": len(signals),
