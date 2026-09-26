@@ -170,13 +170,6 @@ export default function App() {
         onRefresh={loadData}
       />
 
-      {/* Main KPI Stats Bar */}
-      <StatsBar
-        signalsCount={signals.length}
-        incidents={incidents}
-        jiraTicketsCount={jiraTickets.length}
-      />
-
       {/* Main Content Area */}
       <main style={{ padding: '0 28px 40px 28px', flex: 1 }}>
         {/* Navigation Tabs */}
@@ -187,7 +180,7 @@ export default function App() {
           borderBottom: '1px solid var(--border-subtle)',
           marginBottom: '20px',
         }}>
-          <div style={{ display: 'flex', gap: '4px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -199,18 +192,18 @@ export default function App() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    padding: '12px 20px',
+                    padding: '10px 16px',
                     background: 'transparent',
                     border: 'none',
-                    borderBottom: isActive ? '2px solid var(--cyan)' : '2px solid transparent',
-                    color: isActive ? 'var(--cyan)' : 'var(--text-secondary)',
-                    fontWeight: isActive ? 600 : 500,
+                    borderBottom: isActive ? '2px solid #D6A62C' : '2px solid transparent',
+                    color: isActive ? '#252525' : '#565F6E',
+                    fontWeight: isActive ? 700 : 500,
                     fontSize: '0.88rem',
                     cursor: 'pointer',
                     transition: 'all var(--transition-fast)',
                   }}
                 >
-                  <Icon size={16} />
+                  <Icon size={16} color={isActive ? '#D6A62C' : '#565F6E'} />
                   <span>{tab.label}</span>
                 </button>
               );
@@ -221,7 +214,7 @@ export default function App() {
           {selectedIncident && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.8rem' }}>
               <span style={{ color: 'var(--text-muted)' }}>Active Incident:</span>
-              <span className="font-mono badge badge-cyan">
+              <span className="font-mono badge badge-amber">
                 {selectedIncident.id}
               </span>
               <span className="badge badge-purple">
@@ -238,6 +231,8 @@ export default function App() {
             selectedIncident={selectedIncident}
             onSelectIncident={handleSelectIncident}
             allSignals={signals}
+            jiraTicketsCount={jiraTickets.length}
+            onNavigate={setActiveTab}
           />
         )}
 
@@ -245,6 +240,7 @@ export default function App() {
           <IncidentDetails
             incident={selectedIncident}
             allSignals={signals}
+            onNavigate={setActiveTab}
           />
         )}
 
@@ -252,6 +248,7 @@ export default function App() {
           <EvidenceGraph
             incident={selectedIncident}
             graphData={graphData}
+            onNavigate={setActiveTab}
           />
         )}
 
@@ -260,9 +257,31 @@ export default function App() {
             incident={selectedIncident}
             onTicketPublished={handleTicketPublished}
             jiraTickets={jiraTickets}
+            onNavigate={setActiveTab}
           />
         )}
       </main>
+
+      {/* Global Broadsheet Footer */}
+      <footer
+        style={{
+          width: '100%',
+          background: '#FAF8F0',
+          borderTop: '1px solid var(--border-subtle)',
+          padding: '16px 28px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '0.78rem',
+          color: '#565F6E',
+        }}
+      >
+        <span>ENSYLON Observability &amp; Autonomous Telemetry Core &bull; BroadSheet Architecture</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <span style={{ fontWeight: 600 }}>SYSTEM HEALTH: OPTIMAL</span>
+          <span>&copy; 2025 ENSYLON Inc.</span>
+        </div>
+      </footer>
 
       {/* Webhook Modal */}
       <WebhookModal

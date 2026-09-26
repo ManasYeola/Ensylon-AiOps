@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, RefreshCw, Zap, Server, Cpu, ShieldCheck } from 'lucide-react';
+import { Play, RefreshCw, Zap, Server, Cpu, ShieldCheck, User } from 'lucide-react';
 
 export default function Header({
   health,
@@ -9,99 +9,152 @@ export default function Header({
   onRefresh,
 }) {
   return (
-    <header style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '16px 28px',
-      borderBottom: '1px solid var(--border-subtle)',
-      background: 'rgba(10, 15, 26, 0.85)',
-      backdropFilter: 'blur(16px)',
-      position: 'sticky',
-      top: 0,
-      zIndex: 100,
-    }}>
+    <header
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '14px 28px',
+        borderBottom: '1px solid var(--border-subtle)',
+        background: '#FAF8F0',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+      }}
+    >
       {/* Brand */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-        <img src="/logo.svg" alt="Ensylon AIOps Logo" style={{ width: '38px', height: '38px' }} />
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h1 style={{
-              fontSize: '1.25rem',
-              fontWeight: 800,
-              letterSpacing: '-0.02em',
-              background: 'linear-gradient(135deg, #FFFFFF 30%, #94A3B8 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}>
-              ENSYLON <span style={{ color: 'var(--cyan)' }}>AIOps</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h1
+              style={{
+                fontSize: '1.2rem',
+                fontWeight: 800,
+                letterSpacing: '-0.02em',
+                color: '#252525',
+              }}
+            >
+              ENSYLON AIOps
             </h1>
-            <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>MVP v0.1</span>
+            <span
+              style={{
+                fontSize: '0.68rem',
+                padding: '2px 8px',
+                borderRadius: 'var(--radius-sm)',
+                background: '#EAE6DB',
+                color: '#565F6E',
+                fontWeight: 600,
+              }}
+            >
+              MVP v0.1
+            </span>
           </div>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-            Autonomous Incident Correlation &bull; 4-Gate Validation &bull; LLM Ticket Drafting
+          <p
+            style={{
+              fontSize: '0.72rem',
+              color: '#565F6E',
+              fontWeight: 600,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              marginTop: '1px',
+            }}
+          >
+            Autonomous Incident Correlation
           </p>
         </div>
       </div>
 
       {/* Center Status Indicators */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-        {/* Backend health status */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '6px 12px',
-          background: 'var(--bg-glass-input)',
-          borderRadius: 'var(--radius-full)',
-          border: '1px solid var(--border-subtle)',
-          fontSize: '0.78rem',
-        }}>
-          <div className="live-pulse" style={{
-            background: health?.status === 'ok' ? 'var(--green)' : 'var(--rose)',
-            boxShadow: health?.status === 'ok' ? '0 0 8px var(--green)' : '0 0 8px var(--rose)',
-          }} />
-          <span style={{ color: 'var(--text-secondary)' }}>API:</span>
-          <span style={{ fontWeight: 600, color: health?.status === 'ok' ? 'var(--green)' : 'var(--rose)' }}>
-            {health?.status === 'ok' ? 'ONLINE' : 'CONNECTING...'}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {/* API Status */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '5px 12px',
+            background: '#FAF8F0',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border-subtle)',
+            fontSize: '0.78rem',
+          }}
+        >
+          <span
+            style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: '#D6A62C',
+              display: 'inline-block',
+            }}
+          />
+          <span style={{ color: '#565F6E' }}>
+            API: <strong style={{ color: '#252525' }}>Active (24ms)</strong>
           </span>
         </div>
 
         {/* LLM Engine Badge */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          padding: '6px 12px',
-          background: 'rgba(139, 92, 246, 0.1)',
-          borderRadius: 'var(--radius-full)',
-          border: '1px solid rgba(139, 92, 246, 0.25)',
-          fontSize: '0.78rem',
-        }}>
-          <Cpu size={14} color="var(--purple)" />
-          <span style={{ color: 'var(--text-secondary)' }}>LLM Engine:</span>
-          <span style={{ fontWeight: 600, color: '#C4B5FD' }}>Groq / compound-mini</span>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '5px 12px',
+            background: '#FAF8F0',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--border-subtle)',
+            fontSize: '0.78rem',
+          }}
+        >
+          <span style={{ color: '#565F6E' }}>
+            LLM Engine: <strong style={{ color: '#252525' }}>Claude 3.5 Sonnet</strong>
+          </span>
+          <span
+            style={{
+              padding: '2px 6px',
+              background: 'rgba(61, 70, 84, 0.1)',
+              color: '#3D4654',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '0.68rem',
+              fontWeight: 600,
+            }}
+          >
+            Ready
+          </span>
         </div>
+
+        {/* Refresh Icon */}
+        <button
+          onClick={onRefresh}
+          title="Refresh telemetry"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: '#565F6E',
+            cursor: 'pointer',
+            padding: '6px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <RefreshCw size={16} />
+        </button>
       </div>
 
       {/* Action Buttons */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <button
           className="btn btn-secondary"
-          onClick={onRefresh}
-          title="Refresh dashboard data"
-          style={{ padding: '8px 12px' }}
-        >
-          <RefreshCw size={15} />
-          <span>Refresh</span>
-        </button>
-
-        <button
-          className="btn btn-secondary"
           onClick={onOpenWebhook}
-          title="Simulate CloudWatch or Grafana payload"
+          style={{
+            padding: '7px 16px',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: '0.82rem',
+            borderColor: 'rgba(61, 70, 84, 0.35)',
+            color: '#3D4654',
+          }}
         >
-          <Zap size={15} color="var(--amber)" />
           <span>Test Webhook</span>
         </button>
 
@@ -109,20 +162,41 @@ export default function Header({
           className="btn btn-primary"
           onClick={onRunDemo}
           disabled={isRunningDemo}
-          title="Check Live Streams Status"
+          title="Run Pipeline Demo"
+          style={{
+            padding: '7px 18px',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: '0.82rem',
+            background: '#D6A62C',
+            color: '#FFFFFF',
+          }}
         >
           {isRunningDemo ? (
             <>
               <RefreshCw size={15} className="animate-spin" />
-              <span>Checking Streams...</span>
+              <span>Correlating Signals...</span>
             </>
           ) : (
-            <>
-              <Server size={15} />
-              <span>Check Streams</span>
-            </>
+            <span>Run Pipeline Demo</span>
           )}
         </button>
+
+        {/* User Icon */}
+        <div
+          style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            background: '#785A00',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#FFFFFF',
+            marginLeft: '4px',
+          }}
+        >
+          <User size={16} />
+        </div>
       </div>
     </header>
   );
