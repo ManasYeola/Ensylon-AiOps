@@ -786,8 +786,8 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
               gap: '6px',
             }}
           >
-            <Sparkles size={15} color="#D6A62C" />
-            <span>Generate / Review Ticket</span>
+            <FileText size={15} color="#D6A62C" />
+            <span>View Ticket for Approval</span>
           </button>
 
           <button

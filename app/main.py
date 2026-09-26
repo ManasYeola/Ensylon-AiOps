@@ -337,6 +337,13 @@ def _run_pipeline(signals: list[Signal]) -> list[dict]:
         _graphs[inc_id]       = graph
         results.append(incident.model_dump())
 
+        # Pre-generate ticket draft in the background so it is ready for human review
+        try:
+            draft = generate_ticket_draft(incident, cluster_signals, fp)
+            _drafts[inc_id] = draft
+        except Exception as e:
+            logger.debug("Background ticket generation for %s: %s", inc_id, e)
+
     return results
 
 
@@ -611,6 +618,18 @@ def create_draft(incident_id: str) -> dict:
 def get_draft(incident_id: str) -> dict:
     draft = _drafts.get(incident_id)
     if not draft:
+        inc = _incidents.get(incident_id)
+        if not inc:
+            raise HTTPException(status_code=404, detail="Incident not found")
+        cluster_signals = [_signals[sid] for sid in inc.signal_ids if sid in _signals]
+        fp = _fingerprints.get(inc.fingerprint_id)
+        if fp and cluster_signals:
+            try:
+                draft = generate_ticket_draft(inc, cluster_signals, fp)
+                _drafts[incident_id] = draft
+                return draft.model_dump()
+            except Exception as e:
+                logger.warning("Auto draft generation on GET failed: %s", e)
         raise HTTPException(status_code=404, detail="No draft found — POST /draft first")
     return draft.model_dump()
 

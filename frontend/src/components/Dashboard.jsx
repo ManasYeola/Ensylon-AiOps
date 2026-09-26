@@ -487,8 +487,8 @@ export default function Dashboard({
                       gap: '6px',
                     }}
                   >
-                    <Sparkles size={14} />
-                    <span>Generate Ticket</span>
+                    <FileText size={14} />
+                    <span>View Ticket</span>
                   </button>
                 </div>
               </div>
@@ -767,8 +767,8 @@ export default function Dashboard({
                           gap: '5px',
                         }}
                       >
-                        <Sparkles size={13} color={isSelected ? '#FFFFFF' : '#785A00'} />
-                        <span>Generate Ticket</span>
+                        <FileText size={13} color={isSelected ? '#FFFFFF' : '#785A00'} />
+                        <span>View Ticket</span>
                       </button>
                     </div>
                   </div>
