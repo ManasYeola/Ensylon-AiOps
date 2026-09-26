@@ -322,7 +322,7 @@ export default function TicketReview({
                   marginBottom: '4px',
                 }}
               >
-                <FileText size={18} color="var(--cyan)" />
+                <FileText size={18} color="#D6A62C" />
                 <span
                   className="font-mono"
                   style={{
@@ -349,8 +349,8 @@ export default function TicketReview({
                   <span
                     style={{
                       fontSize: '0.72rem',
-                      color: 'var(--text-muted)',
-                      background: 'rgba(255,255,255,0.05)',
+                      color: 'var(--text-secondary)',
+                      background: 'rgba(61, 70, 84, 0.08)',
                       padding: '2px 8px',
                       borderRadius: '4px',
                     }}
@@ -380,7 +380,7 @@ export default function TicketReview({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
-                  background: jiraConfig?.is_configured ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+                  background: jiraConfig?.is_configured ? 'rgba(16, 185, 129, 0.12)' : '#EAE6DB',
                   border: jiraConfig?.is_configured ? '1px solid rgba(16, 185, 129, 0.4)' : '1px solid var(--border-subtle)',
                 }}
               >
@@ -446,7 +446,7 @@ export default function TicketReview({
                 </div>
               ) : (
                 <button
-                  className="btn btn-success"
+                  className="btn btn-primary"
                   onClick={handlePublishJira}
                   disabled={publishing}
                   title="Automatically approve and publish ticket directly to Jira in one click"
@@ -482,7 +482,7 @@ export default function TicketReview({
               flexWrap: 'wrap',
               gap: '16px',
               padding: '10px 14px',
-              background: 'rgba(255, 255, 255, 0.03)',
+              background: '#EAE6DB',
               border: '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-md)',
               marginBottom: '20px',
@@ -521,7 +521,7 @@ export default function TicketReview({
               <span style={{ color: 'var(--text-muted)' }}>Confidence:</span>
               <span
                 className="font-mono"
-                style={{ fontWeight: 600, color: 'var(--cyan)' }}
+                style={{ fontWeight: 700, color: '#D6A62C' }}
               >
                 {(confidenceScore * 100).toFixed(0)}%
               </span>
@@ -543,14 +543,9 @@ export default function TicketReview({
                 {affectedServices.map((svc, i) => (
                   <span
                     key={i}
-                    className="font-mono"
+                    className="font-mono badge badge-purple"
                     style={{
                       fontSize: '0.72rem',
-                      padding: '2px 8px',
-                      background: 'rgba(139, 92, 246, 0.15)',
-                      border: '1px solid rgba(139, 92, 246, 0.3)',
-                      borderRadius: 'var(--radius-sm)',
-                      color: '#C4B5FD',
                     }}
                   >
                     {svc}
@@ -589,8 +584,8 @@ export default function TicketReview({
                     style={{
                       width: '100%',
                       padding: '8px 12px',
-                      background: 'var(--bg-glass-input)',
-                      border: '1px solid var(--border-medium)',
+                      background: '#FFFFFF',
+                      border: '1px solid rgba(61, 70, 84, 0.2)',
                       borderRadius: 'var(--radius-sm)',
                       color: 'var(--text-primary)',
                       fontFamily: 'var(--font-sans)',
@@ -617,8 +612,8 @@ export default function TicketReview({
                     style={{
                       width: '100%',
                       padding: '8px 12px',
-                      background: 'var(--bg-glass-input)',
-                      border: '1px solid var(--border-medium)',
+                      background: '#FFFFFF',
+                      border: '1px solid rgba(61, 70, 84, 0.2)',
                       borderRadius: 'var(--radius-sm)',
                       color: 'var(--text-primary)',
                       fontFamily: 'var(--font-sans)',
@@ -652,11 +647,11 @@ export default function TicketReview({
             )}
           </div>
 
-          {/* Source-labeled Signal Timeline (Challenge Spec Requirement) */}
+          {/* Source-labeled Signal Timeline */}
           {draft.timeline && draft.timeline.length > 0 && (
             <div
               style={{
-                background: 'rgba(15, 23, 42, 0.4)',
+                background: '#F2EFE5',
                 border: '1px solid var(--border-subtle)',
                 borderRadius: 'var(--radius-md)',
                 padding: '16px',
@@ -671,7 +666,7 @@ export default function TicketReview({
                   marginBottom: '10px',
                 }}
               >
-                <Clock size={16} color="var(--cyan)" />
+                <Clock size={16} color="#D6A62C" />
                 <h4
                   style={{
                     fontSize: '0.88rem',
@@ -698,10 +693,10 @@ export default function TicketReview({
                     style={{
                       fontSize: '0.78rem',
                       padding: '6px 10px',
-                      background: 'rgba(255, 255, 255, 0.02)',
-                      borderLeft: '2px solid var(--cyan)',
+                      background: '#FAF8F0',
+                      borderLeft: '3px solid #D6A62C',
                       borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
-                      color: 'var(--text-secondary)',
+                      color: 'var(--text-primary)',
                     }}
                   >
                     {entry}
@@ -711,7 +706,7 @@ export default function TicketReview({
             </div>
           )}
 
-          {/* PRD Strict Separation Columns: Observed Evidence vs Suspected Root Cause */}
+          {/* Observed Evidence vs Suspected Root Cause */}
           <div
             style={{
               display: 'grid',
@@ -723,8 +718,8 @@ export default function TicketReview({
             {/* 1. Observed Evidence (Deterministic facts, strictly telemetry) */}
             <div
               style={{
-                background: 'rgba(6, 182, 212, 0.04)',
-                border: '1px solid rgba(6, 182, 212, 0.2)',
+                background: 'rgba(214, 166, 44, 0.06)',
+                border: '1px solid rgba(214, 166, 44, 0.25)',
                 borderRadius: 'var(--radius-md)',
                 padding: '16px',
               }}
@@ -737,12 +732,12 @@ export default function TicketReview({
                   marginBottom: '8px',
                 }}
               >
-                <Lock size={16} color="var(--cyan)" />
+                <Lock size={16} color="#D6A62C" />
                 <h4
                   style={{
                     fontSize: '0.88rem',
-                    fontWeight: 600,
-                    color: 'var(--cyan)',
+                    fontWeight: 700,
+                    color: '#785A00',
                   }}
                 >
                   Observed Evidence (Facts)
@@ -766,7 +761,7 @@ export default function TicketReview({
                   flexDirection: 'column',
                   gap: '6px',
                   fontSize: '0.78rem',
-                  color: 'var(--text-secondary)',
+                  color: 'var(--text-primary)',
                   maxHeight: '220px',
                   overflowY: 'auto',
                 }}
@@ -782,8 +777,8 @@ export default function TicketReview({
             {/* 2. Suspected Root Cause (Unverified LLM Hypothesis) */}
             <div
               style={{
-                background: 'rgba(139, 92, 246, 0.04)',
-                border: '1px solid rgba(139, 92, 246, 0.2)',
+                background: 'rgba(61, 70, 84, 0.05)',
+                border: '1px solid rgba(61, 70, 84, 0.18)',
                 borderRadius: 'var(--radius-md)',
                 padding: '16px',
               }}
@@ -796,12 +791,12 @@ export default function TicketReview({
                   marginBottom: '8px',
                 }}
               >
-                <Lightbulb size={16} color="var(--purple)" />
+                <Lightbulb size={16} color="#3D4654" />
                 <h4
                   style={{
                     fontSize: '0.88rem',
-                    fontWeight: 600,
-                    color: '#C4B5FD',
+                    fontWeight: 700,
+                    color: '#3D4654',
                   }}
                 >
                   Suspected Root Cause (Hypothesis)
@@ -810,11 +805,11 @@ export default function TicketReview({
               <div
                 style={{
                   padding: '6px 10px',
-                  background: 'rgba(245, 158, 11, 0.1)',
-                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  background: 'rgba(214, 166, 44, 0.15)',
+                  border: '1px solid rgba(214, 166, 44, 0.35)',
                   borderRadius: 'var(--radius-sm)',
                   fontSize: '0.72rem',
-                  color: 'var(--amber)',
+                  color: '#785A00',
                   fontWeight: 600,
                   marginBottom: '10px',
                 }}
@@ -829,8 +824,8 @@ export default function TicketReview({
                   style={{
                     width: '100%',
                     padding: '8px 12px',
-                    background: 'var(--bg-glass-input)',
-                    border: '1px solid var(--border-medium)',
+                    background: '#FFFFFF',
+                    border: '1px solid rgba(61, 70, 84, 0.2)',
                     borderRadius: 'var(--radius-sm)',
                     color: 'var(--text-primary)',
                     fontFamily: 'var(--font-sans)',
@@ -851,10 +846,10 @@ export default function TicketReview({
             </div>
           </div>
 
-          {/* Remediation / Suggested Investigation Steps */}
+          {/* Suggested Investigation Steps */}
           <div
             style={{
-              background: 'var(--bg-card)',
+              background: '#F2EFE5',
               border: '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-md)',
               padding: '16px',
@@ -889,8 +884,8 @@ export default function TicketReview({
                   style={{
                     width: '100%',
                     padding: '8px 12px',
-                    background: 'var(--bg-glass-input)',
-                    border: '1px solid var(--border-medium)',
+                    background: '#FFFFFF',
+                    border: '1px solid rgba(61, 70, 84, 0.2)',
                     borderRadius: 'var(--radius-sm)',
                     color: 'var(--text-primary)',
                     fontFamily: 'var(--font-sans)',
@@ -918,7 +913,7 @@ export default function TicketReview({
             )}
           </div>
 
-          {/* Human Review Gate Actions (PRD §21) */}
+          {/* Human Review Gate Actions */}
           <div
             style={{
               display: 'flex',
@@ -931,8 +926,7 @@ export default function TicketReview({
             }}
           >
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              Human Gate (PRD §21): Review, edit, approve or reject before Jira
-              publication.
+              Human Gate: Review, edit, approve or reject before Jira publication.
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -994,8 +988,8 @@ export default function TicketReview({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.7)',
-            backdropFilter: 'blur(8px)',
+            background: 'rgba(37, 37, 37, 0.45)',
+            backdropFilter: 'blur(6px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1011,8 +1005,8 @@ export default function TicketReview({
               padding: '24px',
               borderRadius: 'var(--radius-lg)',
               boxShadow: 'var(--shadow-xl)',
-              background: '#0F172A',
-              border: '1px solid var(--border-highlight)',
+              background: '#FAF8F0',
+              border: '1px solid rgba(61, 70, 84, 0.18)',
             }}
           >
             <div
@@ -1026,7 +1020,7 @@ export default function TicketReview({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Settings size={20} color="var(--cyan)" />
+                <Settings size={20} color="#D6A62C" />
                 <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                   Atlassian Jira Cloud Settings
                 </h3>
@@ -1064,8 +1058,8 @@ export default function TicketReview({
                     width: '100%',
                     padding: '8px 12px',
                     fontSize: '0.82rem',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid var(--border-subtle)',
+                    background: '#FFFFFF',
+                    border: '1px solid rgba(61, 70, 84, 0.2)',
                     borderRadius: 'var(--radius-sm)',
                     color: 'var(--text-primary)',
                   }}
@@ -1086,8 +1080,8 @@ export default function TicketReview({
                     width: '100%',
                     padding: '8px 12px',
                     fontSize: '0.82rem',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid var(--border-subtle)',
+                    background: '#FFFFFF',
+                    border: '1px solid rgba(61, 70, 84, 0.2)',
                     borderRadius: 'var(--radius-sm)',
                     color: 'var(--text-primary)',
                   }}
@@ -1103,7 +1097,7 @@ export default function TicketReview({
                     href="https://id.atlassian.com/manage-profile/security/api-tokens"
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ fontSize: '0.7rem', color: 'var(--cyan)', textDecoration: 'none' }}
+                    style={{ fontSize: '0.7rem', color: '#D6A62C', textDecoration: 'none', fontWeight: 600 }}
                   >
                     Generate Token &rarr;
                   </a>
@@ -1117,8 +1111,8 @@ export default function TicketReview({
                     width: '100%',
                     padding: '8px 12px',
                     fontSize: '0.82rem',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px solid var(--border-subtle)',
+                    background: '#FFFFFF',
+                    border: '1px solid rgba(61, 70, 84, 0.2)',
                     borderRadius: 'var(--radius-sm)',
                     color: 'var(--text-primary)',
                   }}
@@ -1140,8 +1134,8 @@ export default function TicketReview({
                       width: '100%',
                       padding: '8px 12px',
                       fontSize: '0.82rem',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid var(--border-subtle)',
+                      background: '#FFFFFF',
+                      border: '1px solid rgba(61, 70, 84, 0.2)',
                       borderRadius: 'var(--radius-sm)',
                       color: 'var(--text-primary)',
                       textTransform: 'uppercase',
@@ -1163,8 +1157,8 @@ export default function TicketReview({
                       width: '100%',
                       padding: '8px 12px',
                       fontSize: '0.82rem',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid var(--border-subtle)',
+                      background: '#FFFFFF',
+                      border: '1px solid rgba(61, 70, 84, 0.2)',
                       borderRadius: 'var(--radius-sm)',
                       color: 'var(--text-primary)',
                     }}

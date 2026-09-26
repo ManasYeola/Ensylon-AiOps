@@ -11,28 +11,34 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-// Service color scheme for distinct visual clustering
+// Service color scheme for distinct visual clustering matching broadsheet palette
 const SERVICE_COLORS = {
-  payment: { fill: '#06B6D4', stroke: '#22D3EE', label: 'Payment API' },
-  order: { fill: '#A855F7', stroke: '#C084FC', label: 'Order Worker' },
-  docforge: { fill: '#10B981', stroke: '#34D399', label: 'DocForge' },
-  rulesforge: { fill: '#F59E0B', stroke: '#FBBF24', label: 'RulesForge' },
-  agency: { fill: '#F43F5E', stroke: '#FB7185', label: 'Agency Gateway' },
-  default: { fill: '#3B82F6', stroke: '#60A5FA', label: 'Core Service' },
+  payment: { fill: '#3D4654', stroke: '#2A313C', label: 'Payments' },
+  carrier: { fill: '#2563EB', stroke: '#1D4ED8', label: 'Carrier' },
+  enrollment: { fill: '#0D9488', stroke: '#0F766E', label: 'Enrollment' },
+  comms: { fill: '#8B5CF6', stroke: '#7C3AED', label: 'Comms' },
+  order: { fill: '#7C3AED', stroke: '#6D28D9', label: 'Order Worker' },
+  docforge: { fill: '#10B981', stroke: '#059669', label: 'DocForge' },
+  rulesforge: { fill: '#D97706', stroke: '#B45309', label: 'RulesForge' },
+  agency: { fill: '#DC2626', stroke: '#B91C1C', label: 'Agency Gateway' },
+  default: { fill: '#565F6E', stroke: '#3D4654', label: 'Core Service' },
 };
 
-// Distinct color for Strong Edges (Electric Lime / Chartreuse - completely distinct from Cyan, Purple, Green, Amber, Rose, Blue)
+// Distinct warm amber/gold for Strong Edges matching broadsheet theme
 const STRONG_EDGE = {
-  stroke: '#A3E635',
-  highlight: '#BEF264',
-  glow: 'rgba(163, 230, 53, 0.45)',
-  badgeBg: '#0F172A',
+  stroke: '#D6A62C',
+  highlight: '#B8860B',
+  glow: 'rgba(214, 166, 44, 0.4)',
+  badgeBg: '#FAF8F0',
   label: 'Strong Correlation Edge',
 };
 
 function getServiceColor(serviceName = '') {
   const s = String(serviceName).toLowerCase();
   if (s.includes('payment')) return SERVICE_COLORS.payment;
+  if (s.includes('carrier')) return SERVICE_COLORS.carrier;
+  if (s.includes('enrollment')) return SERVICE_COLORS.enrollment;
+  if (s.includes('comms')) return SERVICE_COLORS.comms;
   if (s.includes('order')) return SERVICE_COLORS.order;
   if (s.includes('docforge')) return SERVICE_COLORS.docforge;
   if (s.includes('rulesforge')) return SERVICE_COLORS.rulesforge;
@@ -325,13 +331,13 @@ export default function EvidenceGraph({ incident, graphData }) {
     ctx.translate(transform.x, transform.y);
     ctx.scale(transform.k, transform.k);
 
-    // Subtle background grid
+    // Subtle background grid matching warm broadsheet cream
     const worldLeft = -transform.x / transform.k - 200;
     const worldTop = -transform.y / transform.k - 200;
     const worldRight = (width - transform.x) / transform.k + 200;
     const worldBottom = (height - transform.y) / transform.k + 200;
 
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.fillStyle = 'rgba(61, 70, 84, 0.12)';
     const step = 40;
     const startX = Math.floor(worldLeft / step) * step;
     const startY = Math.floor(worldTop / step) * step;
@@ -343,7 +349,7 @@ export default function EvidenceGraph({ incident, graphData }) {
       }
     }
 
-    // 1. Draw Edges using DISTINCT Strong Edge Color (Neon Lime #A3E635)
+    // 1. Draw Edges using broadsheet gold (#D6A62C)
     edges.forEach((edge) => {
       const source = nodes.find((n) => n.id === edge.source_signal);
       const target = nodes.find((n) => n.id === edge.target_signal);
@@ -360,19 +366,19 @@ export default function EvidenceGraph({ incident, graphData }) {
       ctx.lineTo(target.x, target.y);
 
       if (isHighlighted) {
-        // Glowing Neon Lime for active / focused edge
-        ctx.strokeStyle = STRONG_EDGE.highlight;
+        // Glowing gold for active / focused edge
+        ctx.strokeStyle = '#D6A62C';
         ctx.lineWidth = 2.8;
-        ctx.shadowColor = STRONG_EDGE.glow;
+        ctx.shadowColor = 'rgba(214, 166, 44, 0.45)';
         ctx.shadowBlur = 10;
       } else if (selectedNodeId || hoveredNodeId) {
         // Dimmed edges when focusing on a specific node
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+        ctx.strokeStyle = 'rgba(61, 70, 84, 0.08)';
         ctx.lineWidth = 1;
         ctx.shadowBlur = 0;
       } else {
-        // Crisp Strong Edge in distinctive Neon Lime color
-        ctx.strokeStyle = STRONG_EDGE.stroke;
+        // Crisp Edge in gold color
+        ctx.strokeStyle = 'rgba(214, 166, 44, 0.65)';
         ctx.lineWidth = 1.6;
         ctx.shadowBlur = 0;
       }
@@ -392,8 +398,8 @@ export default function EvidenceGraph({ incident, graphData }) {
         const badgeW = metrics.width + 10;
         const badgeH = 16;
 
-        ctx.fillStyle = isHighlighted ? STRONG_EDGE.stroke : STRONG_EDGE.badgeBg;
-        ctx.strokeStyle = isHighlighted ? '#FFFFFF' : STRONG_EDGE.stroke;
+        ctx.fillStyle = isHighlighted ? '#D6A62C' : '#FAF8F0';
+        ctx.strokeStyle = isHighlighted ? '#B8860B' : 'rgba(61, 70, 84, 0.25)';
         ctx.lineWidth = 1.2;
 
         ctx.beginPath();
@@ -405,7 +411,7 @@ export default function EvidenceGraph({ incident, graphData }) {
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = isHighlighted ? '#0F172A' : STRONG_EDGE.highlight;
+        ctx.fillStyle = isHighlighted ? '#FFFFFF' : '#252525';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(label, midX, midY);
@@ -422,21 +428,21 @@ export default function EvidenceGraph({ incident, graphData }) {
       ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
 
       // Fill circle
-      ctx.fillStyle = isSelected ? '#FFFFFF' : isHovered ? color.stroke : color.fill;
+      ctx.fillStyle = isSelected ? '#D6A62C' : isHovered ? color.stroke : color.fill;
       ctx.fill();
 
       // Stroke & Glow
-      ctx.strokeStyle = isSelected ? STRONG_EDGE.highlight : isHovered ? '#FFFFFF' : color.stroke;
+      ctx.strokeStyle = isSelected ? '#FFFFFF' : isHovered ? '#FFFFFF' : color.stroke;
       ctx.lineWidth = isSelected ? 3.5 : isHovered ? 2.5 : 1.5;
       if (isSelected || isHovered) {
-        ctx.shadowColor = STRONG_EDGE.glow;
+        ctx.shadowColor = 'rgba(214, 166, 44, 0.45)';
         ctx.shadowBlur = 12;
       }
       ctx.stroke();
       ctx.shadowBlur = 0;
 
       // Clean Number Inside Circle
-      ctx.fillStyle = isSelected ? '#0F172A' : '#FFFFFF';
+      ctx.fillStyle = '#FFFFFF';
       ctx.font = '700 10px JetBrains Mono, monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -452,8 +458,8 @@ export default function EvidenceGraph({ incident, graphData }) {
         const lh = 18;
         const ly = node.y + node.radius + 12;
 
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
-        ctx.strokeStyle = isSelected ? STRONG_EDGE.stroke : 'rgba(255, 255, 255, 0.2)';
+        ctx.fillStyle = '#FAF8F0';
+        ctx.strokeStyle = isSelected ? '#D6A62C' : 'rgba(61, 70, 84, 0.25)';
         ctx.lineWidth = 1;
 
         ctx.beginPath();
@@ -465,7 +471,7 @@ export default function EvidenceGraph({ incident, graphData }) {
         ctx.fill();
         ctx.stroke();
 
-        ctx.fillStyle = isSelected ? STRONG_EDGE.highlight : '#F8FAFC';
+        ctx.fillStyle = isSelected ? '#785A00' : '#252525';
         ctx.fillText(labelText, node.x, ly);
       }
     });
@@ -645,20 +651,15 @@ export default function EvidenceGraph({ incident, graphData }) {
           {/* Header Title & Counts */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Network size={18} color={STRONG_EDGE.stroke} />
-            <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+            <h4 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
               Evidence Graph
             </h4>
-            <span className="badge badge-cyan font-mono" style={{ fontSize: '0.72rem' }}>
+            <span className="badge badge-amber font-mono" style={{ fontSize: '0.72rem' }}>
               {rawNodes.length} Nodes
             </span>
             <span
-              className="badge font-mono"
-              style={{
-                fontSize: '0.72rem',
-                background: 'rgba(163, 230, 53, 0.15)',
-                border: '1px solid #A3E635',
-                color: '#A3E635',
-              }}
+              className="badge badge-amber font-mono"
+              style={{ fontSize: '0.72rem' }}
             >
               {activeEdges.length} Strong Edges
             </span>
@@ -670,8 +671,8 @@ export default function EvidenceGraph({ incident, graphData }) {
             <div
               style={{
                 display: 'flex',
-                background: 'rgba(15, 23, 42, 0.8)',
-                padding: '2px',
+                background: '#EAE6DB',
+                padding: '3px',
                 borderRadius: 'var(--radius-sm)',
                 border: '1px solid var(--border-subtle)',
               }}
@@ -680,34 +681,36 @@ export default function EvidenceGraph({ incident, graphData }) {
                 onClick={() => setViewMode('backbone')}
                 title="Maximum Spanning Tree: clean correlation backbone with zero hairball cycles"
                 style={{
-                  padding: '4px 9px',
+                  padding: '4px 10px',
                   fontSize: '0.72rem',
                   fontWeight: 600,
                   border: 'none',
                   borderRadius: 'var(--radius-xs)',
                   cursor: 'pointer',
-                  background: viewMode === 'backbone' ? STRONG_EDGE.stroke : 'transparent',
-                  color: viewMode === 'backbone' ? '#0F172A' : 'var(--text-secondary)',
+                  background: viewMode === 'backbone' ? '#FAF8F0' : 'transparent',
+                  color: viewMode === 'backbone' ? '#252525' : '#565F6E',
+                  boxShadow: viewMode === 'backbone' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
                 }}
               >
-                <Sparkles size={12} />
+                <Sparkles size={12} color="#D6A62C" />
                 Clean Backbone
               </button>
               <button
                 onClick={() => setViewMode('top2')}
                 title="Top 2 strongest connections per node"
                 style={{
-                  padding: '4px 9px',
+                  padding: '4px 10px',
                   fontSize: '0.72rem',
                   fontWeight: 600,
                   border: 'none',
                   borderRadius: 'var(--radius-xs)',
                   cursor: 'pointer',
-                  background: viewMode === 'top2' ? STRONG_EDGE.stroke : 'transparent',
-                  color: viewMode === 'top2' ? '#0F172A' : 'var(--text-secondary)',
+                  background: viewMode === 'top2' ? '#FAF8F0' : 'transparent',
+                  color: viewMode === 'top2' ? '#252525' : '#565F6E',
+                  boxShadow: viewMode === 'top2' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                 }}
               >
                 Top-2
@@ -716,14 +719,15 @@ export default function EvidenceGraph({ incident, graphData }) {
                 onClick={() => setViewMode('all')}
                 title="Show all strong correlation edges"
                 style={{
-                  padding: '4px 9px',
+                  padding: '4px 10px',
                   fontSize: '0.72rem',
                   fontWeight: 600,
                   border: 'none',
                   borderRadius: 'var(--radius-xs)',
                   cursor: 'pointer',
-                  background: viewMode === 'all' ? STRONG_EDGE.stroke : 'transparent',
-                  color: viewMode === 'all' ? '#0F172A' : 'var(--text-secondary)',
+                  background: viewMode === 'all' ? '#FAF8F0' : 'transparent',
+                  color: viewMode === 'all' ? '#252525' : '#565F6E',
+                  boxShadow: viewMode === 'all' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
                 }}
               >
                 All Strong
@@ -740,10 +744,10 @@ export default function EvidenceGraph({ incident, graphData }) {
                 gap: '5px',
                 padding: '4px 8px',
                 fontSize: '0.72rem',
-                fontWeight: 500,
-                background: weightMode === 'all' ? 'rgba(163, 230, 53, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                border: weightMode === 'all' ? `1px solid ${STRONG_EDGE.stroke}` : '1px solid var(--border-subtle)',
-                color: weightMode === 'all' ? STRONG_EDGE.stroke : 'var(--text-secondary)',
+                fontWeight: 600,
+                background: weightMode === 'all' ? 'rgba(214, 166, 44, 0.15)' : '#EAE6DB',
+                border: weightMode === 'all' ? '1px solid #D6A62C' : '1px solid var(--border-subtle)',
+                color: weightMode === 'all' ? '#785A00' : '#565F6E',
                 borderRadius: 'var(--radius-sm)',
                 cursor: 'pointer',
               }}
@@ -767,7 +771,8 @@ export default function EvidenceGraph({ incident, graphData }) {
               height: '100%',
               display: 'block',
               borderRadius: 'var(--radius-md)',
-              background: '#0B1120',
+              background: '#FAF8F0',
+              border: '1px solid var(--border-subtle)',
             }}
           />
 
@@ -779,19 +784,18 @@ export default function EvidenceGraph({ incident, graphData }) {
                 left: `${Math.min(hoverPosition.x + 14, 520)}px`,
                 top: `${Math.min(hoverPosition.y + 14, 380)}px`,
                 pointerEvents: 'none',
-                background: 'rgba(15, 23, 42, 0.95)',
-                border: `1px solid ${STRONG_EDGE.stroke}`,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                background: '#FAF8F0',
+                border: '1px solid var(--border-medium)',
+                boxShadow: 'var(--shadow-md)',
                 borderRadius: 'var(--radius-sm)',
                 padding: '8px 12px',
                 fontSize: '0.75rem',
                 zIndex: 100,
                 maxWidth: '280px',
-                backdropFilter: 'blur(8px)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                <span className="font-mono" style={{ color: STRONG_EDGE.stroke, fontWeight: 700 }}>
+                <span className="font-mono" style={{ color: '#D6A62C', fontWeight: 700 }}>
                   #{hoverPosition.node.shortIdx} {hoverPosition.node.id}
                 </span>
                 <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>
@@ -822,9 +826,9 @@ export default function EvidenceGraph({ incident, graphData }) {
               onClick={handleZoomIn}
               title="Zoom In"
               style={{
-                background: 'rgba(15, 23, 42, 0.85)',
+                background: '#FAF8F0',
                 border: '1px solid var(--border-subtle)',
-                color: 'var(--text-primary)',
+                color: '#252525',
                 width: '28px',
                 height: '28px',
                 borderRadius: 'var(--radius-xs)',
@@ -832,6 +836,7 @@ export default function EvidenceGraph({ incident, graphData }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
+                boxShadow: 'var(--shadow-sm)',
               }}
             >
               <ZoomIn size={14} />
@@ -840,9 +845,9 @@ export default function EvidenceGraph({ incident, graphData }) {
               onClick={handleZoomOut}
               title="Zoom Out"
               style={{
-                background: 'rgba(15, 23, 42, 0.85)',
+                background: '#FAF8F0',
                 border: '1px solid var(--border-subtle)',
-                color: 'var(--text-primary)',
+                color: '#252525',
                 width: '28px',
                 height: '28px',
                 borderRadius: 'var(--radius-xs)',
@@ -850,6 +855,7 @@ export default function EvidenceGraph({ incident, graphData }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
+                boxShadow: 'var(--shadow-sm)',
               }}
             >
               <ZoomOut size={14} />
@@ -858,9 +864,9 @@ export default function EvidenceGraph({ incident, graphData }) {
               onClick={handleResetView}
               title="Reset View & Re-stabilize"
               style={{
-                background: 'rgba(15, 23, 42, 0.85)',
+                background: '#FAF8F0',
                 border: '1px solid var(--border-subtle)',
-                color: 'var(--text-primary)',
+                color: '#252525',
                 width: '28px',
                 height: '28px',
                 borderRadius: 'var(--radius-xs)',
@@ -868,6 +874,7 @@ export default function EvidenceGraph({ incident, graphData }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
+                boxShadow: 'var(--shadow-sm)',
               }}
             >
               <RotateCcw size={13} />
@@ -880,7 +887,7 @@ export default function EvidenceGraph({ incident, graphData }) {
               position: 'absolute',
               bottom: '12px',
               left: '12px',
-              background: 'rgba(10, 16, 28, 0.90)',
+              background: 'rgba(250, 248, 240, 0.95)',
               border: '1px solid var(--border-subtle)',
               borderRadius: 'var(--radius-sm)',
               padding: '6px 12px',
@@ -890,13 +897,14 @@ export default function EvidenceGraph({ incident, graphData }) {
               gap: '12px',
               fontSize: '0.72rem',
               backdropFilter: 'blur(8px)',
+              boxShadow: 'var(--shadow-md)',
               zIndex: 50,
             }}
           >
             {/* Distinct Strong Edge Color Legend Item */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <div style={{ width: '16px', height: '3px', background: STRONG_EDGE.stroke, borderRadius: '2px' }} />
-              <strong style={{ color: STRONG_EDGE.stroke }}>Strong Edge</strong>
+              <strong style={{ color: '#785A00' }}>Strong Edge</strong>
             </div>
 
             {/* Service Node Colors */}
@@ -938,12 +946,9 @@ export default function EvidenceGraph({ incident, graphData }) {
           </div>
           {selectedNode && (
             <span
-              className="badge font-mono"
+              className="badge badge-amber font-mono"
               style={{
                 fontSize: '0.7rem',
-                background: 'rgba(163, 230, 53, 0.15)',
-                border: '1px solid #A3E635',
-                color: '#A3E635',
               }}
             >
               Node #{selectedNode.shortIdx}
@@ -967,8 +972,8 @@ export default function EvidenceGraph({ incident, graphData }) {
               width: '100%',
               padding: '6px 10px 6px 30px',
               fontSize: '0.75rem',
-              background: 'rgba(15, 23, 42, 0.6)',
-              border: '1px solid var(--border-subtle)',
+              background: '#FFFFFF',
+              border: '1px solid rgba(61, 70, 84, 0.2)',
               borderRadius: 'var(--radius-sm)',
               color: 'var(--text-primary)',
             }}
@@ -981,13 +986,13 @@ export default function EvidenceGraph({ incident, graphData }) {
             <div
               style={{
                 padding: '12px',
-                background: 'rgba(15, 23, 42, 0.7)',
+                background: '#F2EFE5',
                 borderRadius: 'var(--radius-sm)',
                 border: '1px solid var(--border-subtle)',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                <span className="font-mono" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#FFFFFF' }}>
+                <span className="font-mono" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#252525' }}>
                   #{selectedNode.shortIdx} {selectedNode.id}
                 </span>
                 <span className="badge badge-purple" style={{ fontSize: '0.68rem' }}>
@@ -1007,7 +1012,7 @@ export default function EvidenceGraph({ incident, graphData }) {
                 {selectedNode.anomaly_score !== undefined && (
                   <div>
                     <span style={{ color: 'var(--text-muted)' }}>Anomaly Score: </span>
-                    <strong style={{ color: STRONG_EDGE.stroke }}>{selectedNode.anomaly_score}</strong>
+                    <strong style={{ color: '#D6A62C' }}>{selectedNode.anomaly_score}</strong>
                   </div>
                 )}
                 {selectedNode.timestamp && (
@@ -1025,11 +1030,11 @@ export default function EvidenceGraph({ incident, graphData }) {
                   style={{
                     marginTop: '10px',
                     padding: '8px 10px',
-                    background: 'rgba(0, 0, 0, 0.3)',
+                    background: '#FAF8F0',
                     borderRadius: 'var(--radius-xs)',
                     border: '1px solid var(--border-subtle)',
                     fontSize: '0.72rem',
-                    color: 'var(--text-secondary)',
+                    color: 'var(--text-primary)',
                     fontFamily: 'monospace',
                     wordBreak: 'break-word',
                   }}
@@ -1071,13 +1076,13 @@ export default function EvidenceGraph({ incident, graphData }) {
                         onClick={() => setSelectedNodeId(edge.targetId)}
                         style={{
                           padding: '10px',
-                          background: 'rgba(15, 23, 42, 0.6)',
+                          background: '#F2EFE5',
                           border: '1px solid var(--border-subtle)',
                           borderRadius: 'var(--radius-sm)',
                           cursor: 'pointer',
                           transition: 'border-color 0.15s ease',
                         }}
-                        onMouseEnter={(e) => (e.currentTarget.style.borderColor = STRONG_EDGE.stroke)}
+                        onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#D6A62C')}
                         onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border-subtle)')}
                       >
                         <div
@@ -1099,16 +1104,13 @@ export default function EvidenceGraph({ incident, graphData }) {
                               gap: '4px',
                             }}
                           >
-                            <ChevronRight size={12} color={STRONG_EDGE.stroke} />
+                            <ChevronRight size={12} color="#D6A62C" />
                             #{targetNode?.shortIdx || '?'} {targetNode?.service || edge.targetId}
                           </span>
                           <span
-                            className="badge font-mono"
+                            className="badge badge-amber font-mono"
                             style={{
                               fontSize: '0.7rem',
-                              background: 'rgba(163, 230, 53, 0.15)',
-                              border: `1px solid ${STRONG_EDGE.stroke}`,
-                              color: STRONG_EDGE.stroke,
                             }}
                           >
                             Weight: {edge.weight.toFixed(2)}
@@ -1122,8 +1124,8 @@ export default function EvidenceGraph({ incident, graphData }) {
                             gridTemplateColumns: 'repeat(4, 1fr)',
                             gap: '4px',
                             fontSize: '0.65rem',
-                            color: 'var(--text-muted)',
-                            background: 'rgba(0,0,0,0.2)',
+                            color: 'var(--text-secondary)',
+                            background: '#FAF8F0',
                             padding: '4px 6px',
                             borderRadius: 'var(--radius-xs)',
                           }}
@@ -1156,10 +1158,11 @@ export default function EvidenceGraph({ incident, graphData }) {
                         fontSize: '0.68rem',
                         fontFamily: 'monospace',
                         borderRadius: 'var(--radius-xs)',
-                        border: selectedNodeId === n.id ? `1px solid ${STRONG_EDGE.stroke}` : '1px solid var(--border-subtle)',
-                        background: selectedNodeId === n.id ? 'rgba(163, 230, 53, 0.2)' : 'rgba(15, 23, 42, 0.5)',
-                        color: selectedNodeId === n.id ? STRONG_EDGE.stroke : 'var(--text-secondary)',
+                        border: selectedNodeId === n.id ? '1px solid #D6A62C' : '1px solid var(--border-subtle)',
+                        background: selectedNodeId === n.id ? 'rgba(214, 166, 44, 0.16)' : '#EAE6DB',
+                        color: selectedNodeId === n.id ? '#785A00' : 'var(--text-secondary)',
                         cursor: 'pointer',
+                        fontWeight: selectedNodeId === n.id ? 700 : 500,
                       }}
                     >
                       #{n.shortIdx} {n.shortId}
