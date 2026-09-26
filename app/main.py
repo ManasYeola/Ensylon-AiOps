@@ -542,25 +542,39 @@ def get_evidence_graph(incident_id: str) -> dict:
     inc = _incidents.get(incident_id)
     if not inc:
         raise HTTPException(status_code=404, detail="Incident not found")
-    graph = _graphs.get(incident_id)
-    if not graph:
-        raise HTTPException(status_code=404, detail="Graph not found")
 
-    edges = graph.edges_within_cluster(inc.signal_ids)
+    # Resolve signals belonging to this incident
+    cluster_signals = [_signals[sid] for sid in inc.signal_ids if sid in _signals]
+
+    graph = _graphs.get(incident_id)
+    # If graph is missing or missing any of the current incident signals, build it dynamically
+    if not graph or not all(sid in graph.signals for sid in inc.signal_ids):
+        if cluster_signals:
+            graph = EvidenceGraph(cluster_signals)
+            graph.build()
+            _graphs[incident_id] = graph
+
+    edges = graph.edges_within_cluster(inc.signal_ids) if graph else []
     nodes_data = []
     for sid in inc.signal_ids:
         if sid in _signals:
             nodes_data.append(_signals[sid].model_dump())
-        elif sid in graph.signals:
+        elif graph and sid in graph.signals:
             nodes_data.append(graph.signals[sid].model_dump())
         else:
             nodes_data.append({"id": sid})
+
+    serialized_edges = []
+    for e in edges:
+        d = e.model_dump()
+        d["weight"] = d.get("correlation_score", 0.0)
+        serialized_edges.append(d)
 
     return {
         "incident_id": incident_id,
         "nodes": inc.signal_ids,
         "nodes_data": nodes_data,
-        "edges": [e.model_dump() for e in edges],
+        "edges": serialized_edges,
     }
 
 
