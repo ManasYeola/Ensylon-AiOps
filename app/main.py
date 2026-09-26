@@ -45,6 +45,7 @@ from collections import defaultdict
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
+import httpx
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -453,6 +454,22 @@ async def _windowed_pipeline_run() -> None:
 # SSE background consumer (launched by lifespan)
 # ---------------------------------------------------------------------------
 
+async def _get_latest_stream_seqs() -> dict[str, str]:
+    """Fetch current latest sequence IDs from the simulator to avoid replaying past buffers."""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get("https://logs.nonprod.nexus.ensylon.com/sim/stream")
+            if resp.status_code == 200:
+                return {
+                    item["channel"]: str(item["lastSeq"])
+                    for item in resp.json()
+                    if "channel" in item and "lastSeq" in item
+                }
+    except Exception as exc:
+        logger.warning("Failed to fetch latest stream sequences: %s", exc)
+    return {}
+
+
 async def _consume_stream(stream_name: str, url: str) -> None:
     """
     Long-running background task: consume one SSE stream and feed each
@@ -460,6 +477,20 @@ async def _consume_stream(stream_name: str, url: str) -> None:
     """
     status_entry = _stream_status[stream_name]
     last_id = None
+
+    # By default, start at live HEAD so signals count starts at 0 upon server restart,
+    # rather than replaying the ~200-event historical simulator buffer per stream.
+    replay_history = os.getenv("REPLAY_STREAM_HISTORY", "false").lower() in ("true", "1", "yes")
+    if not replay_history:
+        stream_channel = f"aiops-{stream_name}" if not stream_name.startswith("aiops-") else stream_name
+        latest_seqs = await _get_latest_stream_seqs()
+        last_id = latest_seqs.get(stream_channel) or latest_seqs.get(stream_name)
+        if last_id:
+            logger.info(
+                "Initializing stream %s at live HEAD (lastSeq=%s) — signals start at 0",
+                stream_name, last_id,
+            )
+            status_entry["last_event_id"] = last_id
 
     while True:
         try:
@@ -500,10 +531,14 @@ async def _consume_stream(stream_name: str, url: str) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start SSE consumer tasks when the app starts; cancel on shutdown."""
-    for name, url in SIMULATOR_STREAMS.items():
-        task = asyncio.create_task(_consume_stream(name, url), name=f"sse-{name}")
-        _stream_tasks.append(task)
-        logger.info("Started SSE consumer task for %s → %s", name, url)
+    enable_streams = os.getenv("ENABLE_SSE_STREAMS", "true").lower() not in ("false", "0", "no")
+    if enable_streams:
+        for name, url in SIMULATOR_STREAMS.items():
+            task = asyncio.create_task(_consume_stream(name, url), name=f"sse-{name}")
+            _stream_tasks.append(task)
+            logger.info("Started SSE consumer task for %s → %s", name, url)
+    else:
+        logger.info("SSE background streams disabled via ENABLE_SSE_STREAMS=false")
 
     yield
 
@@ -783,6 +818,30 @@ def streams_status() -> dict:
     }
     """
     return {"streams": _stream_status}
+
+
+@app.post("/api/reset")
+async def reset_pipeline():
+    """Reset all in-memory signals, incidents, graphs, and detection state to 0."""
+    global _signals, _incidents, _fp_to_incident, _fingerprints, _graphs, _drafts, _draft_tasks, _metric_history, _log_window_state
+    _signals.clear()
+    _incidents.clear()
+    _fp_to_incident.clear()
+    _fingerprints.clear()
+    _graphs.clear()
+    _drafts.clear()
+    _draft_tasks.clear()
+    _metric_history.clear()
+    _log_window_state.clear()
+
+    latest_seqs = await _get_latest_stream_seqs()
+    for name in _stream_status:
+        channel = f"aiops-{name}" if not name.startswith("aiops-") else name
+        if channel in latest_seqs:
+            _stream_status[name]["last_event_id"] = latest_seqs[channel]
+            _stream_status[name]["events_received"] = 0
+
+    return {"status": "ok", "message": "Pipeline signals and incidents reset to 0"}
 
 
 # ---------------------------------------------------------------------------
