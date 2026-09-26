@@ -13,7 +13,6 @@ import Dashboard from './components/Dashboard';
 import IncidentDetails from './components/IncidentDetails';
 import EvidenceGraph from './components/EvidenceGraph';
 import TicketReview from './components/TicketReview';
-import WebhookModal from './components/WebhookModal';
 import { api } from './services/api';
 
 export default function App() {
@@ -26,7 +25,6 @@ export default function App() {
   const [graphData, setGraphData] = useState(null);
 
   const [isRunningDemo, setIsRunningDemo] = useState(false);
-  const [isWebhookModalOpen, setIsWebhookModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 
   // Show a temporary toast message
@@ -172,7 +170,6 @@ export default function App() {
         health={health}
         isRunningDemo={isRunningDemo}
         onRunDemo={handleRunDemo}
-        onOpenWebhook={() => setIsWebhookModalOpen(true)}
         onRefresh={loadData}
       />
 
@@ -269,16 +266,6 @@ export default function App() {
           />
         )}
       </main>
-
-      {/* Webhook Modal */}
-      <WebhookModal
-        isOpen={isWebhookModalOpen}
-        onClose={() => setIsWebhookModalOpen(false)}
-        onWebhookSuccess={() => {
-          loadData();
-          showToast('Webhook payload processed successfully!');
-        }}
-      />
     </div>
   );
 }

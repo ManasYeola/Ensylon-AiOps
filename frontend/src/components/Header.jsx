@@ -1,11 +1,10 @@
 import React from 'react';
-import { Play, RefreshCw, Zap, Server, Cpu, ShieldCheck } from 'lucide-react';
+import { Play, RefreshCw, Server, Cpu, ShieldCheck } from 'lucide-react';
 
 export default function Header({
   health,
   isRunningDemo,
   onRunDemo,
-  onOpenWebhook,
   onRefresh,
 }) {
   return (
@@ -94,15 +93,6 @@ export default function Header({
         >
           <RefreshCw size={15} />
           <span>Refresh</span>
-        </button>
-
-        <button
-          className="btn btn-secondary"
-          onClick={onOpenWebhook}
-          title="Simulate CloudWatch or Grafana payload"
-        >
-          <Zap size={15} color="var(--amber)" />
-          <span>Test Webhook</span>
         </button>
 
         <button

@@ -1,17 +1,12 @@
 """
-Evidence-grounded LLM ticket generator — PRD §9/G9 / §20 / Challenge spec §C5.
+Evidence-grounded incident ticket drafting using Anthropic Claude (PS §2 #8 / §7 C5).
 
-Supports multiple LLM providers via LLM_PROVIDER env var:
-  - anthropic → Anthropic Claude API (challenge-provided credentials — PREFERRED)
-  - groq      → Groq — https://api.groq.com/openai/v1
-  - gemini    → Google Gemini — OpenAI-compatible endpoint
-  - openai    → OpenAI — standard endpoint
-  - mock      → deterministic fallback (no API key needed)
+Architecture:
+  - Uses the configured Anthropic Claude model only (via anthropic SDK).
+  - No fallback LLM, no multi-provider system, and no mock drafting.
+  - Requires valid ANTHROPIC_API_KEY; fails clearly if missing or if the API call fails.
 
-Anthropic uses its own SDK (anthropic>=1.0); all others use the OpenAI-compatible SDK.
-Set the correct API key and model in .env.
-
-Rules (PRD §20 / challenge spec §C5):
+Rules (PS §7 C5):
   - The LLM receives structured evidence only.
   - It must NOT invent metrics, timestamps, services, causes, or remediation actions.
   - Clearly distinguish observed_evidence from suspected_root_cause.
@@ -23,7 +18,6 @@ import os
 import json
 import logging
 
-from app.config import load_config
 from app.models.signal import Signal
 from app.models.incident import Incident
 from app.models.fingerprint import IncidentFingerprint
@@ -32,15 +26,15 @@ from app.models.ticket import TicketDraft
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Provider configuration — Anthropic Claude (PS §2 #8 / §7 C5)
+# Anthropic Claude Configuration (PS §2 #8 / §7 C5)
 # ---------------------------------------------------------------------------
 
 DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6"
 
 
-def _resolve_provider() -> tuple[str, str]:
+def _get_claude_credentials() -> tuple[str, str]:
     """
-    Resolve Anthropic Claude credentials.
+    Retrieve Anthropic Claude model and API key.
     Throws ValueError immediately if ANTHROPIC_API_KEY is not set.
     """
     api_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
@@ -153,7 +147,8 @@ DRAFT_TOOL: dict = {
 
 
 # ---------------------------------------------------------------------------
-# LLM call (with mock fallback)
+# ---------------------------------------------------------------------------
+# Anthropic Claude API Call
 # ---------------------------------------------------------------------------
 
 def _call_anthropic(evidence: dict, model: str, api_key: str) -> dict:
@@ -189,7 +184,7 @@ def _call_llm(evidence: dict) -> dict:
     Throws ValueError if ANTHROPIC_API_KEY is not set, or RuntimeError / API error on failure.
     No fallback is used.
     """
-    model, api_key = _resolve_provider()
+    model, api_key = _get_claude_credentials()
     return _call_anthropic(evidence, model, api_key)
 
 

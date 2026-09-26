@@ -75,11 +75,6 @@ export const api = {
       body: JSON.stringify(config),
     }),
 
-  // Demo Pipeline & Webhooks
+  // Live Streams Status
   getStreamsStatus: () => request('/api/streams/status'),
-  testWebhook: (payload) =>
-    request('/webhooks/test', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
 };

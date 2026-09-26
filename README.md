@@ -14,10 +14,11 @@ ensylon-aiops/
 │   │   ├── signal.py
 │   │   └── incident.py
 │   │
-│   ├── ingestion/             # Multi-source signal ingestion
-│   │   ├── cloudwatch.py      # AWS CloudWatch alarms
-│   │   ├── logs.py            # Log streams
-│   │   └── grafana.py         # Grafana alertmanager webhooks
+│   ├── ingestion/             # Multi-source SSE stream ingestion
+│   │   ├── sse_client.py      # Resilient SSE consumer client
+│   │   ├── cloudwatch.py      # AWS CloudWatch metrics & alarms
+│   │   ├── logs.py            # Application log streams
+│   │   └── grafana.py         # Grafana alert stream payloads
 │   │
 │   ├── detection/             # Anomaly detection routines
 │   │   ├── metrics.py         # Metric threshold & deviation detection
