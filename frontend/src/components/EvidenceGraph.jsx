@@ -1,1113 +1,1179 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import {
-  Activity,
-  ArrowRight,
-  CheckCircle2,
-  Clock,
-  Cpu,
-  Crosshair,
-  Database,
-  Download,
-  Eye,
-  FileDown,
-  Info,
-  Layers,
-  Maximize2,
   Network,
-  Radio,
-  RefreshCw,
-  Server,
-  Shield,
-  ShieldCheck,
-  Sliders,
+  Info,
   ZoomIn,
   ZoomOut,
+  RotateCcw,
+  Search,
+  Eye,
+  ChevronRight,
+  Sparkles,
 } from 'lucide-react';
 
-export default function EvidenceGraph({ incident, graphData, onNavigate }) {
+// Service color scheme for distinct visual clustering
+const SERVICE_COLORS = {
+  payment: { fill: '#06B6D4', stroke: '#22D3EE', label: 'Payment API' },
+  order: { fill: '#A855F7', stroke: '#C084FC', label: 'Order Worker' },
+  docforge: { fill: '#10B981', stroke: '#34D399', label: 'DocForge' },
+  rulesforge: { fill: '#F59E0B', stroke: '#FBBF24', label: 'RulesForge' },
+  agency: { fill: '#F43F5E', stroke: '#FB7185', label: 'Agency Gateway' },
+  default: { fill: '#3B82F6', stroke: '#60A5FA', label: 'Core Service' },
+};
+
+// Distinct color for Strong Edges (Electric Lime / Chartreuse - completely distinct from Cyan, Purple, Green, Amber, Rose, Blue)
+const STRONG_EDGE = {
+  stroke: '#A3E635',
+  highlight: '#BEF264',
+  glow: 'rgba(163, 230, 53, 0.45)',
+  badgeBg: '#0F172A',
+  label: 'Strong Correlation Edge',
+};
+
+function getServiceColor(serviceName = '') {
+  const s = String(serviceName).toLowerCase();
+  if (s.includes('payment')) return SERVICE_COLORS.payment;
+  if (s.includes('order')) return SERVICE_COLORS.order;
+  if (s.includes('docforge')) return SERVICE_COLORS.docforge;
+  if (s.includes('rulesforge')) return SERVICE_COLORS.rulesforge;
+  if (s.includes('agency')) return SERVICE_COLORS.agency;
+  return SERVICE_COLORS.default;
+}
+
+export default function EvidenceGraph({ incident, graphData }) {
+  const canvasRef = useRef(null);
+
+  // View Controls (Cutoff removed as requested)
+  const [viewMode, setViewMode] = useState('backbone'); // 'backbone' (MST), 'top2', 'all'
+  const [weightMode, setWeightMode] = useState('focus'); // 'focus' (hover/select only), 'all'
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Selected & Hovered State
   const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const [zoomLevel, setZoomLevel] = useState(1.0);
-  const [viewMode, setViewMode] = useState('topo'); // topo, time, latency
+  const [hoveredNodeId, setHoveredNodeId] = useState(null);
+  const [hoverPosition, setHoverPosition] = useState(null);
 
-  // Default fallback sample nodes if live telemetry has no graph data yet
-  const fallbackNodes = useMemo(
-    () => [
-      {
-        id: 'SIG-8902',
-        service: 'comms-service',
-        component: 'redis',
-        timestamp: '2026-09-26T14:22:04.112Z',
-        anomaly_type: 'ResourceStarvation::PoolExhaustion',
-        source: 'Datadog / Prometheus Redis Exporter',
-        message:
-          'Connection pool starved due to unclosed socket leak during batch SMS dispatch. Pool exhaustion triggered cascading backpressure across comms-service workers.',
-        role: 'ROOT CAUSE',
-      },
-      {
-        id: 'SIG-8905',
-        service: 'comms-service',
-        component: 'http',
-        timestamp: '2026-09-26T14:22:18.420Z',
-        anomaly_type: 'PerformanceDegradation::P99Spike',
-        source: 'OpenTelemetry Trace Aggregator',
-        message:
-          'P99 latency surged from 45ms to 3,420ms due to blocked thread pool awaiting redis connections. Triggered circuit alerts in ingress proxy.',
-        role: 'DOWNSTREAM',
-      },
-      {
-        id: 'SIG-8908',
-        service: 'queue-worker',
-        component: 'bullmq',
-        timestamp: '2026-09-26T14:22:23.018Z',
-        anomaly_type: 'QueueCongestion::Backpressure',
-        source: 'Kubernetes Pod Diagnostics',
-        message:
-          'Celery/BullMQ consumers failed to write status acknowledgments back to storage, causing worker thread pool to hit max capacity of 128/128.',
-        role: 'DOWNSTREAM',
-      },
-      {
-        id: 'SIG-8911',
-        service: 'comms-service',
-        component: 'api',
-        timestamp: '2026-09-26T14:22:26.504Z',
-        anomaly_type: 'ServiceUnavailability::HTTP503',
-        source: 'Envoy Access Logs',
-        message:
-          'Public HTTP ingress responded with 503 Service Unavailable to 41.2% of inbound traffic as internal queue buffers reached hard limits.',
-        role: 'SYMPTOM',
-      },
-      {
-        id: 'SIG-8914',
-        service: 'ingress-gateway',
-        component: 'istio-proxy',
-        timestamp: '2026-09-26T14:22:34.901Z',
-        anomaly_type: 'TrafficManagement::CircuitBreak',
-        source: 'Istio Service Mesh Metrics',
-        message:
-          'Ingress Envoy proxy automatically tripped outlier detection breaker, shedding 60% of non-essential dispatch routes to prevent whole-cluster cascading failure.',
-        role: 'ISOLATION BOUNDARY',
-      },
-    ],
-    []
-  );
+  // Pan and Zoom Transform: { x: 0, y: 0, k: 1 }
+  const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
+  const isDraggingCanvasRef = useRef(false);
+  const draggedNodeRef = useRef(null);
+  const dragStartRef = useRef({ x: 0, y: 0 });
 
-  const fallbackEdges = useMemo(
-    () => [
-      { source_signal: 'SIG-8902', target_signal: 'SIG-8905', correlation_score: 0.96, delta_seconds: 14 },
-      { source_signal: 'SIG-8902', target_signal: 'SIG-8908', correlation_score: 0.94, delta_seconds: 19 },
-      { source_signal: 'SIG-8905', target_signal: 'SIG-8911', correlation_score: 0.88, delta_seconds: 3 },
-      { source_signal: 'SIG-8908', target_signal: 'SIG-8911', correlation_score: 0.89, delta_seconds: 11 },
-      { source_signal: 'SIG-8911', target_signal: 'SIG-8914', correlation_score: 0.82, delta_seconds: 8 },
-    ],
-    []
-  );
+  // Node positions are stored and fixed after stabilization
+  const nodesRef = useRef([]);
+  const edgesRef = useRef([]);
 
-  // Extract real live nodes and edges from graphData
-  const liveNodesRaw = graphData?.nodes_data && graphData.nodes_data.length > 0
-    ? graphData.nodes_data
-    : graphData?.nodes && graphData.nodes.length > 0
-    ? graphData.nodes.map((id, idx) => ({ id, service: (incident?.services || ['comms-service'])[idx % (incident?.services?.length || 1)] }))
-    : fallbackNodes;
-
-  const liveEdgesRaw = graphData?.edges && graphData.edges.length > 0
-    ? graphData.edges
-    : fallbackEdges;
-
-  // Determine root cause node: matches root_cause_service or earliest timestamp
-  const rootNodeId = useMemo(() => {
-    if (!liveNodesRaw || liveNodesRaw.length === 0) return 'SIG-8902';
-    if (incident?.root_cause_service) {
-      const match = liveNodesRaw.find((n) =>
-        (n.service && incident.root_cause_service.includes(n.service)) ||
-        (n.component && incident.root_cause_service.includes(n.component))
-      );
-      if (match) return match.id;
+  // Normalize raw nodes and edges
+  const { rawNodes, rawEdges, nodeIndexMap } = useMemo(() => {
+    if (!graphData || !graphData.nodes) {
+      return { rawNodes: [], rawEdges: [], nodeIndexMap: new Map() };
     }
-    return liveNodesRaw[0].id;
-  }, [liveNodesRaw, incident]);
 
-  // Compute topological coordinates for live nodes
-  const layoutNodes = useMemo(() => {
-    if (!liveNodesRaw || liveNodesRaw.length === 0) return [];
+    const nodes = (graphData.nodes_data || graphData.nodes.map((id) => ({ id }))).map((n, idx) => ({
+      ...n,
+      id: String(n.id || n.signal_id || `node-${idx}`),
+      shortIdx: idx + 1,
+      shortId: (n.id || '').length > 10 ? `...${(n.id || '').slice(-6)}` : n.id,
+      color: getServiceColor(n.service),
+    }));
 
-    const nodesList = [...liveNodesRaw];
-    const root = nodesList.find((n) => n.id === rootNodeId) || nodesList[0];
-    const nonRoot = nodesList.filter((n) => n.id !== root.id);
+    const indexMap = new Map();
+    nodes.forEach((n) => indexMap.set(n.id, n));
 
-    // Mid layer vs end layer split
-    const midCount = Math.ceil(nonRoot.length / 2);
-    const midNodes = nonRoot.slice(0, midCount);
-    const endNodes = nonRoot.slice(midCount);
-
-    const result = [];
-
-    // Root node at col 0
-    result.push({
-      ...root,
-      x: 100,
-      y: 220,
-      role: 'ROOT CAUSE',
-      badgeBg: '#D6A62C',
-      badgeColor: '#FFFFFF',
+    const edges = (graphData.edges || []).map((e) => {
+      const score =
+        typeof e.weight === 'number'
+          ? e.weight
+          : typeof e.correlation_score === 'number'
+          ? e.correlation_score
+          : 0;
+      return {
+        ...e,
+        weight: score,
+        correlation_score: score,
+      };
     });
 
-    // Mid layer nodes at col 1
-    const midStartY = midNodes.length === 1 ? 220 : 120;
-    const midStepY = midNodes.length > 1 ? 230 / (midNodes.length - 1 || 1) : 0;
-    midNodes.forEach((node, i) => {
-      result.push({
-        ...node,
-        x: 390,
-        y: midStartY + i * midStepY,
-        role: node.role || 'DOWNSTREAM',
-        badgeBg: '#EAE6DB',
-        badgeColor: '#3D4654',
+    return { rawNodes: nodes, rawEdges: edges, nodeIndexMap: indexMap };
+  }, [graphData]);
+
+  // Compute Active Edges based on View Mode (automatic strong threshold 0.70)
+  const activeEdges = useMemo(() => {
+    const valid = rawEdges.filter((e) => e.weight >= 0.70);
+
+    if (viewMode === 'all') return valid.length > 0 ? valid : rawEdges;
+
+    if (viewMode === 'top2') {
+      const nodeEdges = new Map();
+      rawEdges.forEach((e) => {
+        if (!nodeEdges.has(e.source_signal)) nodeEdges.set(e.source_signal, []);
+        if (!nodeEdges.has(e.target_signal)) nodeEdges.set(e.target_signal, []);
+        nodeEdges.get(e.source_signal).push(e);
+        nodeEdges.get(e.target_signal).push(e);
       });
-    });
 
-    // End layer nodes at col 2
-    const endStartY = endNodes.length === 1 ? 220 : 90;
-    const endStepY = endNodes.length > 1 ? 250 / (endNodes.length - 1 || 1) : 0;
-    endNodes.forEach((node, i) => {
-      result.push({
-        ...node,
-        x: 670,
-        y: endStartY + i * endStepY,
-        role: node.role || (i % 2 === 0 ? 'SYMPTOM' : 'ISOLATION BOUNDARY'),
-        badgeBg: i % 2 === 0 ? 'rgba(186, 26, 26, 0.1)' : '#3D4654',
-        badgeColor: i % 2 === 0 ? '#BA1A1A' : '#FFFFFF',
-      });
-    });
-
-    return result;
-  }, [liveNodesRaw, rootNodeId]);
-
-  // Active selected node
-  const activeNode = useMemo(() => {
-    if (!layoutNodes || layoutNodes.length === 0) return fallbackNodes[0];
-    if (selectedNodeId) {
-      const found = layoutNodes.find((n) => n.id === selectedNodeId);
-      if (found) return found;
-    }
-    return layoutNodes[0];
-  }, [layoutNodes, selectedNodeId]);
-
-  // Compute edges with coordinates
-  const layoutEdges = useMemo(() => {
-    const nodeMap = new Map(layoutNodes.map((n) => [n.id, n]));
-    const list = [];
-
-    liveEdgesRaw.forEach((edge) => {
-      const srcId = edge.source_signal || edge.source;
-      const tgtId = edge.target_signal || edge.target;
-      const src = nodeMap.get(srcId);
-      const tgt = nodeMap.get(tgtId);
-
-      if (src && tgt) {
-        const isFromRoot = src.id === rootNodeId;
-        const weight = edge.correlation_score || edge.weight || 0.88;
-        const deltaSec = edge.delta_seconds || 14;
-
-        // Curve start & end
-        const x1 = src.x + 180;
-        const y1 = src.y + 40;
-        const x2 = tgt.x;
-        const y2 = tgt.y + 40;
-        const cx1 = x1 + (x2 - x1) * 0.45;
-        const cy1 = y1;
-        const cx2 = x1 + (x2 - x1) * 0.55;
-        const cy2 = y2;
-        const midX = (x1 + x2) / 2;
-        const midY = (y1 + y2) / 2;
-
-        list.push({
-          id: `${srcId}-${tgtId}`,
-          d: `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`,
-          midX,
-          midY,
-          weight: weight.toFixed(2),
-          deltaSec,
-          isFromRoot,
+      const chosen = new Set();
+      const result = [];
+      nodeEdges.forEach((edgesList) => {
+        const sorted = [...edgesList].sort((a, b) => b.weight - a.weight).slice(0, 2);
+        sorted.forEach((e) => {
+          const key = [e.source_signal, e.target_signal].sort().join('--');
+          if (!chosen.has(key)) {
+            chosen.add(key);
+            result.push(e);
+          }
         });
+      });
+      return result;
+    }
+
+    // Default: 'backbone' (Maximum Spanning Tree of correlation weights)
+    const sorted = [...rawEdges].sort((a, b) => b.weight - a.weight);
+    const parent = new Map();
+    const find = (i) => {
+      if (!parent.has(i)) parent.set(i, i);
+      if (parent.get(i) === i) return i;
+      const root = find(parent.get(i));
+      parent.set(i, root);
+      return root;
+    };
+    const union = (i, j) => {
+      const rootI = find(i);
+      const rootJ = find(j);
+      if (rootI !== rootJ) {
+        parent.set(rootI, rootJ);
+        return true;
+      }
+      return false;
+    };
+
+    const mstEdges = [];
+    const mstSet = new Set();
+
+    for (const edge of sorted) {
+      if (union(edge.source_signal, edge.target_signal)) {
+        mstEdges.push(edge);
+        const key = [edge.source_signal, edge.target_signal].sort().join('--');
+        mstSet.add(key);
+      }
+    }
+
+    // Add secondary top cross-links if high confidence
+    const nodeDegree = new Map();
+    mstEdges.forEach((e) => {
+      nodeDegree.set(e.source_signal, (nodeDegree.get(e.source_signal) || 0) + 1);
+      nodeDegree.set(e.target_signal, (nodeDegree.get(e.target_signal) || 0) + 1);
+    });
+
+    for (const edge of sorted) {
+      const key = [edge.source_signal, edge.target_signal].sort().join('--');
+      if (!mstSet.has(key)) {
+        const degA = nodeDegree.get(edge.source_signal) || 0;
+        const degB = nodeDegree.get(edge.target_signal) || 0;
+        if (degA < 3 && degB < 3 && edge.weight >= 0.82) {
+          mstEdges.push(edge);
+          mstSet.add(key);
+          nodeDegree.set(edge.source_signal, degA + 1);
+          nodeDegree.set(edge.target_signal, degB + 1);
+        }
+      }
+    }
+
+    return mstEdges;
+  }, [rawEdges, viewMode]);
+
+  // STABLE LAYOUT: Compute force simulation once and FREEZE positions (no continuous movement)
+  const stabilizeLayout = useCallback(() => {
+    if (rawNodes.length === 0) return;
+
+    const canvas = canvasRef.current;
+    const width = canvas?.clientWidth || 700;
+    const height = canvas?.clientHeight || 450;
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    // Cluster nodes by service initially
+    const serviceClusters = new Map();
+    rawNodes.forEach((n) => {
+      const svc = n.service || 'default';
+      if (!serviceClusters.has(svc)) serviceClusters.set(svc, []);
+      serviceClusters.get(svc).push(n);
+    });
+
+    const clusterCount = serviceClusters.size;
+    const clusterAngleStep = (2 * Math.PI) / Math.max(clusterCount, 1);
+    const clusterRadius = Math.min(width, height) * 0.35;
+
+    const nodes = [];
+    let clusterIdx = 0;
+
+    serviceClusters.forEach((clusterNodes) => {
+      const clusterAngle = clusterIdx * clusterAngleStep;
+      const cX = centerX + (clusterCount > 1 ? clusterRadius * Math.cos(clusterAngle) : 0);
+      const cY = centerY + (clusterCount > 1 ? clusterRadius * Math.sin(clusterAngle) : 0);
+      const subRadius = Math.min(width, height) * 0.16;
+
+      clusterNodes.forEach((node, i) => {
+        const subAngle = (i / Math.max(clusterNodes.length, 1)) * 2 * Math.PI;
+        nodes.push({
+          ...node,
+          x: cX + (clusterNodes.length > 1 ? subRadius * Math.cos(subAngle) : 0) + (Math.random() - 0.5) * 15,
+          y: cY + (clusterNodes.length > 1 ? subRadius * Math.sin(subAngle) : 0) + (Math.random() - 0.5) * 15,
+          vx: 0,
+          vy: 0,
+          radius: 15,
+        });
+      });
+      clusterIdx++;
+    });
+
+    const edges = activeEdges;
+
+    // Run 150 simulation iterations with cooling decay to reach a rock-solid, static state
+    const iterations = 150;
+    for (let step = 0; step < iterations; step++) {
+      const alpha = Math.max(0.02, 1 - step / iterations);
+
+      // Repulsion between nodes
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const dx = nodes[j].x - nodes[i].x;
+          const dy = nodes[j].y - nodes[i].y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          const minDist = 80;
+          if (dist < minDist) {
+            const force = ((minDist - dist) / dist) * 0.15 * alpha;
+            nodes[i].vx -= dx * force;
+            nodes[i].vy -= dy * force;
+            nodes[j].vx += dx * force;
+            nodes[j].vy += dy * force;
+          }
+        }
+      }
+
+      // Spring attraction along active edges
+      edges.forEach((edge) => {
+        const source = nodes.find((n) => n.id === edge.source_signal);
+        const target = nodes.find((n) => n.id === edge.target_signal);
+        if (source && target) {
+          const dx = target.x - source.x;
+          const dy = target.y - source.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          const targetDist = 100 * (1 - edge.weight * 0.3);
+          const force = (dist - targetDist) * 0.01 * edge.weight * alpha;
+          source.vx += (dx / dist) * force;
+          source.vy += (dy / dist) * force;
+          target.vx -= (dx / dist) * force;
+          target.vy -= (dy / dist) * force;
+        }
+      });
+
+      // Centering gravity & damping
+      nodes.forEach((node) => {
+        node.vx += (centerX - node.x) * 0.004 * alpha;
+        node.vy += (centerY - node.y) * 0.004 * alpha;
+        node.vx *= 0.75;
+        node.vy *= 0.75;
+        node.x += node.vx;
+        node.y += node.vy;
+
+        // Keep inside bounds
+        node.x = Math.max(40, Math.min(width - 40, node.x));
+        node.y = Math.max(40, Math.min(height - 40, node.y));
+      });
+    }
+
+    // Simulation is completely finished - velocities reset to 0
+    nodes.forEach((n) => {
+      n.vx = 0;
+      n.vy = 0;
+    });
+
+    nodesRef.current = nodes;
+    edgesRef.current = edges;
+
+    if (!selectedNodeId && nodes.length > 0) {
+      setSelectedNodeId(nodes[0].id);
+    }
+  }, [rawNodes, activeEdges, selectedNodeId]);
+
+  // Run stabilization when rawNodes or viewMode changes
+  useEffect(() => {
+    stabilizeLayout();
+  }, [stabilizeLayout]);
+
+  // Static Render Function (Draws the frozen layout - ZERO continuous animation)
+  const drawCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const width = canvas.clientWidth || 700;
+    const height = canvas.clientHeight || 450;
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+
+    const nodes = nodesRef.current;
+    const edges = edgesRef.current;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, width, height);
+
+    ctx.save();
+    ctx.translate(transform.x, transform.y);
+    ctx.scale(transform.k, transform.k);
+
+    // Subtle background grid
+    const worldLeft = -transform.x / transform.k - 200;
+    const worldTop = -transform.y / transform.k - 200;
+    const worldRight = (width - transform.x) / transform.k + 200;
+    const worldBottom = (height - transform.y) / transform.k + 200;
+
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+    const step = 40;
+    const startX = Math.floor(worldLeft / step) * step;
+    const startY = Math.floor(worldTop / step) * step;
+    for (let x = startX; x < worldRight; x += step) {
+      for (let y = startY; y < worldBottom; y += step) {
+        ctx.beginPath();
+        ctx.arc(x, y, 1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // 1. Draw Edges using DISTINCT Strong Edge Color (Neon Lime #A3E635)
+    edges.forEach((edge) => {
+      const source = nodes.find((n) => n.id === edge.source_signal);
+      const target = nodes.find((n) => n.id === edge.target_signal);
+      if (!source || !target || isNaN(source.x) || isNaN(target.x)) return;
+
+      const isConnectedToSelected =
+        selectedNodeId && (selectedNodeId === source.id || selectedNodeId === target.id);
+      const isConnectedToHovered =
+        hoveredNodeId && (hoveredNodeId === source.id || hoveredNodeId === target.id);
+      const isHighlighted = isConnectedToSelected || isConnectedToHovered;
+
+      ctx.beginPath();
+      ctx.moveTo(source.x, source.y);
+      ctx.lineTo(target.x, target.y);
+
+      if (isHighlighted) {
+        // Glowing Neon Lime for active / focused edge
+        ctx.strokeStyle = STRONG_EDGE.highlight;
+        ctx.lineWidth = 2.8;
+        ctx.shadowColor = STRONG_EDGE.glow;
+        ctx.shadowBlur = 10;
+      } else if (selectedNodeId || hoveredNodeId) {
+        // Dimmed edges when focusing on a specific node
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+        ctx.lineWidth = 1;
+        ctx.shadowBlur = 0;
+      } else {
+        // Crisp Strong Edge in distinctive Neon Lime color
+        ctx.strokeStyle = STRONG_EDGE.stroke;
+        ctx.lineWidth = 1.6;
+        ctx.shadowBlur = 0;
+      }
+
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Draw Weight Badge (Only when highlighted OR if weightMode is 'all')
+      const shouldDrawBadge = isHighlighted || (weightMode === 'all' && edges.length <= 40);
+      if (shouldDrawBadge) {
+        const midX = (source.x + target.x) / 2;
+        const midY = (source.y + target.y) / 2;
+        const label = edge.weight.toFixed(2);
+
+        ctx.font = '700 10px JetBrains Mono, monospace';
+        const metrics = ctx.measureText(label);
+        const badgeW = metrics.width + 10;
+        const badgeH = 16;
+
+        ctx.fillStyle = isHighlighted ? STRONG_EDGE.stroke : STRONG_EDGE.badgeBg;
+        ctx.strokeStyle = isHighlighted ? '#FFFFFF' : STRONG_EDGE.stroke;
+        ctx.lineWidth = 1.2;
+
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(midX - badgeW / 2, midY - badgeH / 2, badgeW, badgeH, 4);
+        } else {
+          ctx.rect(midX - badgeW / 2, midY - badgeH / 2, badgeW, badgeH);
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = isHighlighted ? '#0F172A' : STRONG_EDGE.highlight;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, midX, midY);
       }
     });
 
-    return list;
-  }, [layoutNodes, liveEdgesRaw, rootNodeId]);
+    // 2. Draw Nodes
+    nodes.forEach((node) => {
+      const isSelected = selectedNodeId === node.id;
+      const isHovered = hoveredNodeId === node.id;
+      const color = node.color || SERVICE_COLORS.default;
 
-  const handleZoomIn = () => setZoomLevel((z) => Math.min(Number((z + 0.15).toFixed(2)), 1.8));
-  const handleZoomOut = () => setZoomLevel((z) => Math.max(Number((z - 0.15).toFixed(2)), 0.6));
-  const handleFitView = () => setZoomLevel(1.0);
-  const handleCenterCluster = () => {
-    setZoomLevel(1.1);
-    setSelectedNodeId(rootNodeId);
-  };
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
 
-  const handleExportTopology = () => {
-    const exportData = {
-      incident_id: incident?.id || 'INC-2ED8DD',
-      modularity: 0.88,
-      confidence: incident?.confidence || 0.982,
-      nodes: layoutNodes,
-      edges: liveEdgesRaw,
+      // Fill circle
+      ctx.fillStyle = isSelected ? '#FFFFFF' : isHovered ? color.stroke : color.fill;
+      ctx.fill();
+
+      // Stroke & Glow
+      ctx.strokeStyle = isSelected ? STRONG_EDGE.highlight : isHovered ? '#FFFFFF' : color.stroke;
+      ctx.lineWidth = isSelected ? 3.5 : isHovered ? 2.5 : 1.5;
+      if (isSelected || isHovered) {
+        ctx.shadowColor = STRONG_EDGE.glow;
+        ctx.shadowBlur = 12;
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Clean Number Inside Circle
+      ctx.fillStyle = isSelected ? '#0F172A' : '#FFFFFF';
+      ctx.font = '700 10px JetBrains Mono, monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${node.shortIdx}`, node.x, node.y);
+
+      // Label beneath node for selected, hovered, or search-matched
+      const isSearched = searchQuery && node.id.toLowerCase().includes(searchQuery.toLowerCase());
+      if (isSelected || isHovered || isSearched) {
+        ctx.font = '600 10px JetBrains Mono, monospace';
+        const labelText = `${node.service || 'signal'} (${node.shortId})`;
+        const labelMetrics = ctx.measureText(labelText);
+        const lw = labelMetrics.width + 12;
+        const lh = 18;
+        const ly = node.y + node.radius + 12;
+
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+        ctx.strokeStyle = isSelected ? STRONG_EDGE.stroke : 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 1;
+
+        ctx.beginPath();
+        if (ctx.roundRect) {
+          ctx.roundRect(node.x - lw / 2, ly - lh / 2, lw, lh, 4);
+        } else {
+          ctx.rect(node.x - lw / 2, ly - lh / 2, lw, lh);
+        }
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = isSelected ? STRONG_EDGE.highlight : '#F8FAFC';
+        ctx.fillText(labelText, node.x, ly);
+      }
+    });
+
+    ctx.restore();
+  }, [transform, selectedNodeId, hoveredNodeId, weightMode, searchQuery]);
+
+  // Redraw when transform, selection, hover, or mode changes
+  useEffect(() => {
+    drawCanvas();
+  }, [drawCanvas]);
+
+  // Convert mouse screen coordinates to world coordinates
+  const getWorldCoords = (e) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const screenX = e.clientX - rect.left;
+    const screenY = e.clientY - rect.top;
+    return {
+      x: (screenX - transform.x) / transform.k,
+      y: (screenY - transform.y) / transform.k,
+      screenX,
+      screenY,
     };
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `topology-${incident?.id || 'INC-2ED8DD'}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
+
+  // Canvas Mouse Events: Pan Canvas or Drag Node
+  const handleMouseDown = (e) => {
+    const { x, y } = getWorldCoords(e);
+    const clickedNode = nodesRef.current.find((n) => {
+      const dx = n.x - x;
+      const dy = n.y - y;
+      return Math.sqrt(dx * dx + dy * dy) <= n.radius + 6;
+    });
+
+    if (clickedNode) {
+      setSelectedNodeId(clickedNode.id);
+      draggedNodeRef.current = clickedNode;
+      dragStartRef.current = { x: x - clickedNode.x, y: y - clickedNode.y };
+    } else {
+      isDraggingCanvasRef.current = true;
+      dragStartRef.current = { x: e.clientX - transform.x, y: e.clientY - transform.y };
+    }
+  };
+
+  const handleMouseMove = (e) => {
+    if (draggedNodeRef.current) {
+      const { x, y } = getWorldCoords(e);
+      draggedNodeRef.current.x = x - dragStartRef.current.x;
+      draggedNodeRef.current.y = y - dragStartRef.current.y;
+      drawCanvas();
+      return;
+    }
+
+    if (isDraggingCanvasRef.current) {
+      setTransform((prev) => ({
+        ...prev,
+        x: e.clientX - dragStartRef.current.x,
+        y: e.clientY - dragStartRef.current.y,
+      }));
+      return;
+    }
+
+    const { x, y, screenX, screenY } = getWorldCoords(e);
+    const hovered = nodesRef.current.find((n) => {
+      const dx = n.x - x;
+      const dy = n.y - y;
+      return Math.sqrt(dx * dx + dy * dy) <= n.radius + 6;
+    });
+
+    if (hovered) {
+      setHoveredNodeId(hovered.id);
+      setHoverPosition({ x: screenX, y: screenY, node: hovered });
+      if (canvasRef.current) canvasRef.current.style.cursor = 'pointer';
+    } else {
+      setHoveredNodeId(null);
+      setHoverPosition(null);
+      if (canvasRef.current) canvasRef.current.style.cursor = 'default';
+    }
+  };
+
+  const handleMouseUp = () => {
+    isDraggingCanvasRef.current = false;
+    draggedNodeRef.current = null;
+  };
+
+  // Zoom with mouse wheel
+  const handleWheel = (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 0.88;
+    setTransform((prev) => {
+      const nextK = Math.max(0.4, Math.min(3.0, prev.k * factor));
+      return { ...prev, k: nextK };
+    });
+  };
+
+  // Zoom & Reset Handlers
+  const handleZoomIn = () => setTransform((prev) => ({ ...prev, k: Math.min(3.0, prev.k * 1.25) }));
+  const handleZoomOut = () => setTransform((prev) => ({ ...prev, k: Math.max(0.4, prev.k * 0.8) }));
+  const handleResetView = () => {
+    setTransform({ x: 0, y: 0, k: 1 });
+    stabilizeLayout();
+  };
+
+  // Selected Node Details
+  const selectedNode = useMemo(() => {
+    return nodeIndexMap.get(selectedNodeId) || nodesRef.current[0] || null;
+  }, [selectedNodeId, nodeIndexMap]);
+
+  // Connected Edges for Selected Node
+  const selectedNodeEdges = useMemo(() => {
+    if (!selectedNode) return [];
+    return activeEdges
+      .filter((e) => e.source_signal === selectedNode.id || e.target_signal === selectedNode.id)
+      .map((e) => {
+        const targetId = e.source_signal === selectedNode.id ? e.target_signal : e.source_signal;
+        const targetNode = nodeIndexMap.get(targetId);
+        return {
+          ...e,
+          targetId,
+          targetNode,
+        };
+      })
+      .sort((a, b) => b.weight - a.weight);
+  }, [selectedNode, activeEdges, nodeIndexMap]);
+
+  // Search filtered node list
+  const filteredNodesList = useMemo(() => {
+    if (!searchQuery) return rawNodes;
+    const q = searchQuery.toLowerCase();
+    return rawNodes.filter(
+      (n) =>
+        n.id.toLowerCase().includes(q) ||
+        (n.service && n.service.toLowerCase().includes(q)) ||
+        (n.component && n.component.toLowerCase().includes(q))
+    );
+  }, [rawNodes, searchQuery]);
+
+  if (!graphData) {
+    return (
+      <div className="glass-card" style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+        <Network size={36} color="var(--cyan)" style={{ margin: '0 auto 16px', display: 'block', opacity: 0.8 }} />
+        <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Loading Evidence Graph...</h4>
+        <p style={{ fontSize: '0.82rem', marginTop: '6px' }}>Fetching correlated signal nodes and dimensional edges</p>
+      </div>
+    );
+  }
+
+  if (!graphData.nodes || graphData.nodes.length === 0) {
+    return (
+      <div className="glass-card" style={{ padding: '60px 20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+        <Network size={36} color="var(--text-muted)" style={{ margin: '0 auto 16px', display: 'block' }} />
+        <h4 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>No Signal Nodes in Cluster</h4>
+        <p style={{ fontSize: '0.82rem', marginTop: '6px' }}>This incident does not contain active anomalous signal nodes.</p>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Top View Control Bar */}
-      <div
-        className="glass-card"
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '12px 20px',
-          borderRadius: 'var(--radius-xl)',
-          background: '#FAF8F0',
-          border: '1px solid var(--border-subtle)',
-          gap: '12px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span
-            style={{
-              width: '10px',
-              height: '10px',
-              borderRadius: '50%',
-              background: '#D6A62C',
-              display: 'inline-block',
-            }}
-          />
-          <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#252525' }}>
-            Incident Correlation Topology
-          </h2>
-          <span
-            style={{
-              fontSize: '0.72rem',
-              fontFamily: 'var(--font-mono)',
-              padding: '2px 8px',
-              borderRadius: 'var(--radius-full)',
-              background: '#EAE6DB',
-              color: '#565F6E',
-              fontWeight: 600,
-            }}
-          >
-            {incident?.id || 'INC-2ED8DD'}
-          </span>
-          <span style={{ fontSize: '0.78rem', color: '#565F6E' }}>
-            Graph modularity inference: active
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {/* View Toggles */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              background: '#EAE6DB',
-              borderRadius: 'var(--radius-lg)',
-              padding: '3px',
-              fontSize: '0.78rem',
-            }}
-          >
-            {[
-              { id: 'topo', label: 'Topological View' },
-              { id: 'time', label: 'Timeline Directed' },
-              { id: 'latency', label: 'Show Latency Edges' },
-            ].map((btn) => (
-              <button
-                key={btn.id}
-                onClick={() => setViewMode(btn.id)}
-                style={{
-                  padding: '5px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  background: viewMode === btn.id ? '#FAF8F0' : 'transparent',
-                  color: viewMode === btn.id ? '#252525' : '#565F6E',
-                  fontWeight: viewMode === btn.id ? 700 : 500,
-                  boxShadow: viewMode === btn.id ? 'var(--shadow-sm)' : 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'all var(--transition-fast)',
-                }}
-              >
-                {btn.label}
-              </button>
-            ))}
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '16px' }}>
+      {/* Canvas Viewport */}
+      <div className="glass-card" style={{ padding: '16px', display: 'flex', flexDirection: 'column' }}>
+        {/* Clean Controls Toolbar (Cutoff removed) */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            marginBottom: '12px',
+            paddingBottom: '12px',
+            borderBottom: '1px solid var(--border-subtle)',
+          }}
+        >
+          {/* Header Title & Counts */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Network size={18} color={STRONG_EDGE.stroke} />
+            <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Evidence Graph
+            </h4>
+            <span className="badge badge-cyan font-mono" style={{ fontSize: '0.72rem' }}>
+              {rawNodes.length} Nodes
+            </span>
+            <span
+              className="badge font-mono"
+              style={{
+                fontSize: '0.72rem',
+                background: 'rgba(163, 230, 53, 0.15)',
+                border: '1px solid #A3E635',
+                color: '#A3E635',
+              }}
+            >
+              {activeEdges.length} Strong Edges
+            </span>
           </div>
 
-          {/* Zoom & Fit Controls */}
+          {/* View Mode & Weight Label Controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* View Mode Selector */}
+            <div
+              style={{
+                display: 'flex',
+                background: 'rgba(15, 23, 42, 0.8)',
+                padding: '2px',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-subtle)',
+              }}
+            >
+              <button
+                onClick={() => setViewMode('backbone')}
+                title="Maximum Spanning Tree: clean correlation backbone with zero hairball cycles"
+                style={{
+                  padding: '4px 9px',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  border: 'none',
+                  borderRadius: 'var(--radius-xs)',
+                  cursor: 'pointer',
+                  background: viewMode === 'backbone' ? STRONG_EDGE.stroke : 'transparent',
+                  color: viewMode === 'backbone' ? '#0F172A' : 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <Sparkles size={12} />
+                Clean Backbone
+              </button>
+              <button
+                onClick={() => setViewMode('top2')}
+                title="Top 2 strongest connections per node"
+                style={{
+                  padding: '4px 9px',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  border: 'none',
+                  borderRadius: 'var(--radius-xs)',
+                  cursor: 'pointer',
+                  background: viewMode === 'top2' ? STRONG_EDGE.stroke : 'transparent',
+                  color: viewMode === 'top2' ? '#0F172A' : 'var(--text-secondary)',
+                }}
+              >
+                Top-2
+              </button>
+              <button
+                onClick={() => setViewMode('all')}
+                title="Show all strong correlation edges"
+                style={{
+                  padding: '4px 9px',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  border: 'none',
+                  borderRadius: 'var(--radius-xs)',
+                  cursor: 'pointer',
+                  background: viewMode === 'all' ? STRONG_EDGE.stroke : 'transparent',
+                  color: viewMode === 'all' ? '#0F172A' : 'var(--text-secondary)',
+                }}
+              >
+                All Strong
+              </button>
+            </div>
+
+            {/* Weight Labels Mode Toggle */}
+            <button
+              onClick={() => setWeightMode((prev) => (prev === 'focus' ? 'all' : 'focus'))}
+              title="Toggle whether edge weight badges appear on hover/selection or across all edges"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 8px',
+                fontSize: '0.72rem',
+                fontWeight: 500,
+                background: weightMode === 'all' ? 'rgba(163, 230, 53, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                border: weightMode === 'all' ? `1px solid ${STRONG_EDGE.stroke}` : '1px solid var(--border-subtle)',
+                color: weightMode === 'all' ? STRONG_EDGE.stroke : 'var(--text-secondary)',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+              }}
+            >
+              <Eye size={12} />
+              <span>{weightMode === 'focus' ? 'Weights: Focus' : 'Weights: All'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Stable Static Canvas Viewport */}
+        <div style={{ flex: 1, minHeight: '440px', position: 'relative', overflow: 'hidden' }}>
+          <canvas
+            ref={canvasRef}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onWheel={handleWheel}
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'block',
+              borderRadius: 'var(--radius-md)',
+              background: '#0B1120',
+            }}
+          />
+
+          {/* Hover Tooltip */}
+          {hoverPosition && hoverPosition.node && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${Math.min(hoverPosition.x + 14, 520)}px`,
+                top: `${Math.min(hoverPosition.y + 14, 380)}px`,
+                pointerEvents: 'none',
+                background: 'rgba(15, 23, 42, 0.95)',
+                border: `1px solid ${STRONG_EDGE.stroke}`,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '8px 12px',
+                fontSize: '0.75rem',
+                zIndex: 100,
+                maxWidth: '280px',
+                backdropFilter: 'blur(8px)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                <span className="font-mono" style={{ color: STRONG_EDGE.stroke, fontWeight: 700 }}>
+                  #{hoverPosition.node.shortIdx} {hoverPosition.node.id}
+                </span>
+                <span className="badge badge-purple" style={{ fontSize: '0.65rem' }}>
+                  {hoverPosition.node.service || 'service'}
+                </span>
+              </div>
+              {hoverPosition.node.evidence && (
+                <div style={{ marginTop: '4px', color: 'var(--text-secondary)', fontSize: '0.7rem' }}>
+                  {hoverPosition.node.evidence}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Zoom & Re-stabilize Controls */}
           <div
             style={{
+              position: 'absolute',
+              top: '12px',
+              right: '12px',
               display: 'flex',
-              alignItems: 'center',
-              gap: '2px',
-              background: '#EAE6DB',
-              borderRadius: 'var(--radius-lg)',
-              padding: '3px',
+              flexDirection: 'column',
+              gap: '6px',
+              zIndex: 50,
             }}
           >
             <button
               onClick={handleZoomIn}
               title="Zoom In"
               style={{
+                background: 'rgba(15, 23, 42, 0.85)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-primary)',
                 width: '28px',
                 height: '28px',
+                borderRadius: 'var(--radius-xs)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: 'var(--radius-sm)',
-                background: 'transparent',
-                border: 'none',
-                color: '#252525',
                 cursor: 'pointer',
               }}
             >
-              <ZoomIn size={15} />
+              <ZoomIn size={14} />
             </button>
             <button
               onClick={handleZoomOut}
               title="Zoom Out"
               style={{
+                background: 'rgba(15, 23, 42, 0.85)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-primary)',
                 width: '28px',
                 height: '28px',
+                borderRadius: 'var(--radius-xs)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: 'var(--radius-sm)',
-                background: 'transparent',
-                border: 'none',
-                color: '#252525',
                 cursor: 'pointer',
               }}
             >
-              <ZoomOut size={15} />
+              <ZoomOut size={14} />
             </button>
             <button
-              onClick={handleFitView}
-              title="Fit to View"
+              onClick={handleResetView}
+              title="Reset View & Re-stabilize"
               style={{
+                background: 'rgba(15, 23, 42, 0.85)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-primary)',
                 width: '28px',
                 height: '28px',
+                borderRadius: 'var(--radius-xs)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: 'var(--radius-sm)',
-                background: 'transparent',
-                border: 'none',
-                color: '#252525',
                 cursor: 'pointer',
               }}
             >
-              <Maximize2 size={15} />
+              <RotateCcw size={13} />
             </button>
-            <button
-              onClick={handleCenterCluster}
-              title="Center Cluster"
-              style={{
-                width: '28px',
-                height: '28px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 'var(--radius-sm)',
-                background: 'transparent',
-                border: 'none',
-                color: '#252525',
-                cursor: 'pointer',
-              }}
-            >
-              <Crosshair size={15} />
-            </button>
+          </div>
+
+          {/* Legend Overlay with Distinct Strong Edge Color */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '12px',
+              left: '12px',
+              background: 'rgba(10, 16, 28, 0.90)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '6px 12px',
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: '12px',
+              fontSize: '0.72rem',
+              backdropFilter: 'blur(8px)',
+              zIndex: 50,
+            }}
+          >
+            {/* Distinct Strong Edge Color Legend Item */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ width: '16px', height: '3px', background: STRONG_EDGE.stroke, borderRadius: '2px' }} />
+              <strong style={{ color: STRONG_EDGE.stroke }}>Strong Edge</strong>
+            </div>
+
+            {/* Service Node Colors */}
+            {Object.entries(SERVICE_COLORS).map(([key, item]) => (
+              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: item.fill }} />
+                <span style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Main Grid: DAG Graph (8 cols) + Right Stack (4 cols) */}
+      {/* Node Inspector Side Panel */}
       <div
+        className="glass-card"
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(12, 1fr)',
-          gap: '20px',
-          alignItems: 'start',
+          padding: '18px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px',
+          maxHeight: '620px',
+          overflowY: 'auto',
         }}
       >
-        {/* Main Bento Card: Telemetry Causality DAG Graph (Spans 8 cols) */}
+        {/* Panel Header */}
         <div
-          className="glass-card"
           style={{
-            gridColumn: 'span 8',
-            borderRadius: 'var(--radius-xl)',
-            background: '#FAF8F0',
-            border: '1px solid var(--border-subtle)',
-            overflow: 'hidden',
             display: 'flex',
-            flexDirection: 'column',
-            position: 'relative',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: '1px solid var(--border-subtle)',
+            paddingBottom: '10px',
           }}
         >
-          {/* Canvas Header */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '14px 20px',
-              background: '#FAF8F0',
-              borderBottom: '1px solid var(--border-subtle)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Network size={18} color="#D6A62C" />
-              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#252525' }}>
-                Telemetry Causality DAG
-              </span>
-              <span
-                style={{
-                  fontSize: '0.7rem',
-                  padding: '2px 8px',
-                  borderRadius: 'var(--radius-full)',
-                  background: '#EAE6DB',
-                  color: '#565F6E',
-                }}
-              >
-                {layoutNodes.length} Nodes &bull; {layoutEdges.length} Propagation Edges
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '0.74rem', color: '#565F6E' }}>
-                Autonomous Resolution Confidence
-              </span>
-              <span
-                style={{
-                  fontSize: '0.74rem',
-                  padding: '2px 8px',
-                  borderRadius: 'var(--radius-full)',
-                  background: '#FEDD7A',
-                  color: '#776001',
-                  fontWeight: 700,
-                  border: '1px solid #D6A62C',
-                }}
-              >
-                {incident?.confidence ? `${(incident.confidence * 100).toFixed(1)}%` : '98.2%'}
-              </span>
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Info size={16} color={STRONG_EDGE.stroke} />
+            <h4 style={{ fontSize: '0.88rem', fontWeight: 600 }}>Evidence Inspector</h4>
           </div>
-
-          {/* SVG Canvas Container */}
-          <div
-            style={{
-              position: 'relative',
-              width: '100%',
-              height: '580px',
-              background: '#1C232D',
-              overflow: 'hidden',
-              userSelect: 'none',
-            }}
-          >
-            {/* Grid Dots Overlay */}
-            <div
+          {selectedNode && (
+            <span
+              className="badge font-mono"
               style={{
-                position: 'absolute',
-                inset: 0,
-                opacity: 0.25,
-                pointerEvents: 'none',
-                backgroundImage: 'radial-gradient(#DAE3F5 1px, transparent 1px)',
-                backgroundSize: '24px 24px',
-              }}
-            />
-
-            <svg
-              viewBox="0 0 940 580"
-              style={{
-                width: '100%',
-                height: '100%',
-                transform: `scale(${zoomLevel})`,
-                transformOrigin: 'center center',
-                transition: 'transform 0.25s ease-out',
-                cursor: 'grab',
+                fontSize: '0.7rem',
+                background: 'rgba(163, 230, 53, 0.15)',
+                border: '1px solid #A3E635',
+                color: '#A3E635',
               }}
             >
-              <defs>
-                <filter id="node-shadow" x="-10%" y="-10%" width="120%" height="120%">
-                  <feDropShadow dx="0" dy="4" stdDeviation="6" floodColor="#000000" floodOpacity="0.35" />
-                </filter>
-                <filter id="root-glow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="12" floodColor="#D6A62C" floodOpacity="0.65" />
-                </filter>
-                <marker id="arrow-solid" markerWidth="6" markerHeight="6" refX="7" refY="5" viewBox="0 0 10 10" orient="auto-start-reverse">
-                  <path d="M 0 1 L 9 5 L 0 9 z" fill="#A5AEBE" />
-                </marker>
-                <marker id="arrow-causal" markerWidth="6" markerHeight="6" refX="7" refY="5" viewBox="0 0 10 10" orient="auto-start-reverse">
-                  <path d="M 0 1 L 9 5 L 0 9 z" fill="#F2BF44" />
-                </marker>
-              </defs>
-
-              {/* Cluster Boundary Box */}
-              <rect
-                x="60"
-                y="45"
-                width="820"
-                height="480"
-                rx="24"
-                fill="#252E3B"
-                fillOpacity="0.55"
-                stroke="#D6A62C"
-                strokeWidth="1.5"
-                strokeDasharray="6 6"
-              />
-              <g transform="translate(80, 70)">
-                <rect x="0" y="0" width="380" height="24" rx="12" fill="#FEDD7A" fillOpacity="0.2" stroke="#D6A62C" strokeWidth="1" />
-                <text x="12" y="16" fill="#FEDD7A" fontFamily="Inter" fontSize="10.5" fontWeight="600" letterSpacing="0.04em">
-                  INCIDENT CLUSTER BOUNDARY &bull; MODULARITY 0.88 &bull; CONF {incident?.confidence ? `${Math.round(incident.confidence * 100)}%` : '98%'}
-                </text>
-              </g>
-
-              {/* Dynamic SVG Edges */}
-              {layoutEdges.map((edge) => (
-                <g key={edge.id} className="graph-edge">
-                  <path
-                    d={edge.d}
-                    fill="none"
-                    stroke={edge.isFromRoot ? '#F2BF44' : '#A5AEBE'}
-                    strokeWidth={edge.isFromRoot ? '2.5' : '1.75'}
-                    strokeDasharray={edge.isFromRoot ? '4 3' : 'none'}
-                    markerEnd={edge.isFromRoot ? 'url(#arrow-causal)' : 'url(#arrow-solid)'}
-                  />
-                  <rect
-                    x={edge.midX - 50}
-                    y={edge.midY - 10}
-                    width="100"
-                    height="20"
-                    rx="10"
-                    fill="#131C29"
-                    stroke={edge.isFromRoot ? '#785A00' : '#3E4755'}
-                    strokeWidth="1"
-                  />
-                  <text
-                    x={edge.midX}
-                    y={edge.midY + 4}
-                    textAnchor="middle"
-                    fill={edge.isFromRoot ? '#FEDD7A' : '#DAE3F5'}
-                    fontFamily="Inter"
-                    fontSize="9.5"
-                    fontWeight={edge.isFromRoot ? '600' : '500'}
-                  >
-                    dt: +{edge.deltaSec}s, {edge.weight}
-                  </text>
-                </g>
-              ))}
-
-              {/* Dynamic SVG Nodes */}
-              {layoutNodes.map((node) => {
-                const isSelected = activeNode.id === node.id;
-                const isRoot = node.role === 'ROOT CAUSE';
-
-                return (
-                  <g
-                    key={node.id}
-                    transform={`translate(${node.x}, ${node.y})`}
-                    onClick={() => setSelectedNodeId(node.id)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {/* Node Card Background */}
-                    <rect
-                      x="0"
-                      y="0"
-                      width={isRoot ? '230' : '200'}
-                      height={isRoot ? '90' : '84'}
-                      rx="16"
-                      fill={isRoot ? '#131C29' : '#252E3B'}
-                      filter={isRoot ? 'url(#root-glow)' : 'url(#node-shadow)'}
-                      stroke={isSelected ? '#D6A62C' : isRoot ? '#D6A62C' : '#3E4755'}
-                      strokeWidth={isSelected || isRoot ? '2.5' : '1.5'}
-                    />
-
-                    {/* Role Header Badge */}
-                    <rect
-                      x="12"
-                      y={isRoot ? '-12' : '-10'}
-                      width={isRoot ? '140' : '100'}
-                      height={isRoot ? '20' : '18'}
-                      rx={isRoot ? '10' : '9'}
-                      fill={isRoot ? '#D6A62C' : node.role === 'SYMPTOM' ? '#BA1A1A' : '#39424F'}
-                    />
-                    <text
-                      x={isRoot ? '82' : '62'}
-                      y={isRoot ? '1.5' : '2.5'}
-                      textAnchor="middle"
-                      fill={isRoot ? '#251A00' : '#FFFFFF'}
-                      fontFamily="Inter"
-                      fontSize={isRoot ? '10' : '9'}
-                      fontWeight="700"
-                      letterSpacing="0.04em"
-                    >
-                      {node.role}
-                    </text>
-
-                    {/* Node Icon Circle */}
-                    <circle
-                      cx="26"
-                      cy="36"
-                      r="13"
-                      fill={isRoot ? 'rgba(214, 166, 44, 0.25)' : 'rgba(218, 227, 245, 0.15)'}
-                    />
-                    <circle
-                      cx="26"
-                      cy="36"
-                      r="6"
-                      fill={isRoot ? '#F2BF44' : node.role === 'SYMPTOM' ? '#BA1A1A' : '#BEC7D8'}
-                    />
-
-                    {/* Node Text Content */}
-                    <text
-                      x="46"
-                      y="33"
-                      fill="#FFFFFF"
-                      fontFamily="Manrope, Inter"
-                      fontSize="12.5"
-                      fontWeight="700"
-                    >
-                      {node.id}
-                    </text>
-                    <text
-                      x="46"
-                      y="47"
-                      fill="#BEC7D8"
-                      fontFamily="Inter"
-                      fontSize="10"
-                    >
-                      {node.service}:{node.component || 'core'}
-                    </text>
-                    <text
-                      x="14"
-                      y="70"
-                      fill={isRoot ? '#FEDD7A' : '#EBE8DF'}
-                      fontFamily="Inter"
-                      fontSize="10.5"
-                      fontWeight={isRoot ? '600' : '500'}
-                    >
-                      {(node.anomaly_type || node.message || 'Signal Anomaly').slice(0, 24)}
-                    </text>
-
-                    {/* Status Dot */}
-                    <circle
-                      cx={isRoot ? '210' : '184'}
-                      cy="32"
-                      r="3.5"
-                      fill={isRoot || node.role === 'SYMPTOM' ? '#BA1A1A' : '#D6A62C'}
-                    />
-                  </g>
-                );
-              })}
-            </svg>
-
-            {/* Floating Topology Legend (Bottom Left) */}
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '16px',
-                left: '16px',
-                padding: '12px 16px',
-                borderRadius: 'var(--radius-lg)',
-                background: 'rgba(19, 28, 41, 0.9)',
-                backdropFilter: 'blur(12px)',
-                border: '1px solid rgba(86, 95, 110, 0.4)',
-                pointerEvents: 'none',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-              }}
-            >
-              <span
-                style={{
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  color: '#DAE3F5',
-                }}
-              >
-                Topology Graph Legend
-              </span>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, 1fr)',
-                  gap: '8px 16px',
-                  fontSize: '0.74rem',
-                  color: '#FFFFFF',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#D6A62C' }} />
-                  <span>Root Cause Origin</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#DAE3F5' }} />
-                  <span>Correlated Signal</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '14px', height: '2px', borderTop: '2px dashed #F2BF44' }} />
-                  <span>Causal Propagation</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ width: '14px', height: '2px', background: '#BEC7D8' }} />
-                  <span>Topological Dependency</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Floating Live Indicator (Top Right) */}
-            <div
-              style={{
-                position: 'absolute',
-                top: '16px',
-                right: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '5px 12px',
-                borderRadius: 'var(--radius-full)',
-                background: 'rgba(19, 28, 41, 0.9)',
-                backdropFilter: 'blur(12px)',
-                border: '1px solid rgba(86, 95, 110, 0.4)',
-                fontSize: '0.72rem',
-                color: '#FFFFFF',
-              }}
-            >
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#D6A62C' }} />
-              <span style={{ fontWeight: 500 }}>Live Causal Inference Stream</span>
-            </div>
-          </div>
+              Node #{selectedNode.shortIdx}
+            </span>
+          )}
         </div>
 
-        {/* Right Stack: 2 interlocking Bento Cards (Spans 4 cols) */}
-        <div style={{ gridColumn: 'span 4', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Bento Card 1: Incident Metadata Card */}
-          <div
-            className="glass-card"
+        {/* Quick Node Search */}
+        <div style={{ position: 'relative' }}>
+          <Search
+            size={13}
+            color="var(--text-muted)"
+            style={{ position: 'absolute', left: '10px', top: '9px' }}
+          />
+          <input
+            type="text"
+            placeholder="Search signals by ID or service..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             style={{
-              padding: '20px 22px',
-              borderRadius: 'var(--radius-xl)',
-              background: '#FAF8F0',
+              width: '100%',
+              padding: '6px 10px 6px 30px',
+              fontSize: '0.75rem',
+              background: 'rgba(15, 23, 42, 0.6)',
               border: '1px solid var(--border-subtle)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '14px',
+              borderRadius: 'var(--radius-sm)',
+              color: 'var(--text-primary)',
             }}
-          >
+          />
+        </div>
+
+        {selectedNode ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {/* Selected Node Details Card */}
             <div
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                paddingBottom: '10px',
-                borderBottom: '1px solid var(--border-subtle)',
+                padding: '12px',
+                background: 'rgba(15, 23, 42, 0.7)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-subtle)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span className="font-mono" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#FFFFFF' }}>
+                  #{selectedNode.shortIdx} {selectedNode.id}
+                </span>
+                <span className="badge badge-purple" style={{ fontSize: '0.68rem' }}>
+                  {selectedNode.type || 'anomaly'}
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '0.74rem', marginTop: '6px' }}>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Service: </span>
+                  <strong style={{ color: 'var(--text-primary)' }}>{selectedNode.service || 'N/A'}</strong>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--text-muted)' }}>Component: </span>
+                  <strong style={{ color: 'var(--text-primary)' }}>{selectedNode.component || 'N/A'}</strong>
+                </div>
+                {selectedNode.anomaly_score !== undefined && (
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Anomaly Score: </span>
+                    <strong style={{ color: STRONG_EDGE.stroke }}>{selectedNode.anomaly_score}</strong>
+                  </div>
+                )}
+                {selectedNode.timestamp && (
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Time: </span>
+                    <strong style={{ color: 'var(--text-secondary)' }}>
+                      {new Date(selectedNode.timestamp).toLocaleTimeString()}
+                    </strong>
+                  </div>
+                )}
+              </div>
+
+              {selectedNode.evidence && (
                 <div
                   style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: 'var(--radius-md)',
-                    background: '#3D4654',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#D6A62C',
+                    marginTop: '10px',
+                    padding: '8px 10px',
+                    background: 'rgba(0, 0, 0, 0.3)',
+                    borderRadius: 'var(--radius-xs)',
+                    border: '1px solid var(--border-subtle)',
+                    fontSize: '0.72rem',
+                    color: 'var(--text-secondary)',
+                    fontFamily: 'monospace',
+                    wordBreak: 'break-word',
                   }}
                 >
-                  <Info size={15} />
+                  {selectedNode.evidence}
                 </div>
-                <span style={{ fontSize: '0.94rem', fontWeight: 700, color: '#252525' }}>
-                  Incident Metadata
-                </span>
-              </div>
-              <span
-                style={{
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  padding: '2px 8px',
-                  borderRadius: 'var(--radius-full)',
-                  background: '#FEDD7A',
-                  color: '#776001',
-                  border: '1px solid #D6A62C',
-                }}
-              >
-                ACTIVE ROOT
-              </span>
+              )}
             </div>
 
-            {/* Grid of Key-Values */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: '10px 12px',
-                padding: '14px 16px',
-                borderRadius: 'var(--radius-lg)',
-                background: '#F4F1E8',
-                border: '1px solid var(--border-subtle)',
-                fontSize: '0.75rem',
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ color: '#565F6E', fontSize: '0.68rem', textTransform: 'uppercase' }}>Incident ID</span>
-                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#252525' }}>
-                  {incident?.id || 'INC-2ED8DD'}
-                </span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span style={{ color: '#565F6E', fontSize: '0.68rem', textTransform: 'uppercase' }}>Severity Metric</span>
-                <span style={{ fontWeight: 700, color: '#BA1A1A' }}>
-                  {(incident?.severity || 52.8).toFixed(1)} / 100 (HIGH)
-                </span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', paddingTop: '4px' }}>
-                <span style={{ color: '#565F6E', fontSize: '0.68rem', textTransform: 'uppercase' }}>Confidence</span>
-                <span style={{ fontWeight: 700, color: '#785A00' }}>
-                  {incident?.confidence ? `${Math.round(incident.confidence * 100)}%` : '98%'} DETERMINISTIC
-                </span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', paddingTop: '4px' }}>
-                <span style={{ color: '#565F6E', fontSize: '0.68rem', textTransform: 'uppercase' }}>Environment</span>
-                <span style={{ color: '#252525' }}>
-                  {incident?.environment?.toUpperCase() || 'PROD'} (eu-west-1)
-                </span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', paddingTop: '4px' }}>
-                <span style={{ color: '#565F6E', fontSize: '0.68rem', textTransform: 'uppercase' }}>Primary Service</span>
-                <span style={{ color: '#252525' }}>
-                  {(incident?.services || ['comms-service'])[0]}
-                </span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', paddingTop: '4px' }}>
-                <span style={{ color: '#565F6E', fontSize: '0.68rem', textTransform: 'uppercase' }}>Correlated Signals</span>
-                <span style={{ color: '#252525' }}>
-                  {layoutNodes.length} signals
-                </span>
-              </div>
+            {/* Connected Edges with Strong Color Badges */}
+            <div>
               <div
                 style={{
-                  gridColumn: 'span 2',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  paddingTop: '8px',
-                  borderTop: '1px solid var(--border-subtle)',
-                  marginTop: '4px',
+                  marginBottom: '8px',
                 }}
               >
-                <span style={{ color: '#565F6E', fontSize: '0.68rem', textTransform: 'uppercase' }}>Noise Reduction Ratio</span>
-                <span style={{ fontWeight: 700, color: '#3D4654' }}>99.4% Compression</span>
+                <span style={{ fontSize: '0.76rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Connected Edges ({selectedNodeEdges.length})
+                </span>
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                  {viewMode === 'backbone' ? 'MST Backbone' : viewMode === 'top2' ? 'Top 2' : 'All Strong'}
+                </span>
               </div>
+
+              {selectedNodeEdges.length === 0 ? (
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.72rem', padding: '12px 0', textAlign: 'center' }}>
+                  No active strong edges connected to this node in current mode.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {selectedNodeEdges.map((edge, idx) => {
+                    const targetNode = edge.targetNode;
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => setSelectedNodeId(edge.targetId)}
+                        style={{
+                          padding: '10px',
+                          background: 'rgba(15, 23, 42, 0.6)',
+                          border: '1px solid var(--border-subtle)',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: 'pointer',
+                          transition: 'border-color 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.borderColor = STRONG_EDGE.stroke)}
+                        onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border-subtle)')}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '6px',
+                          }}
+                        >
+                          <span
+                            className="font-mono"
+                            style={{
+                              color: 'var(--text-primary)',
+                              fontWeight: 600,
+                              fontSize: '0.74rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <ChevronRight size={12} color={STRONG_EDGE.stroke} />
+                            #{targetNode?.shortIdx || '?'} {targetNode?.service || edge.targetId}
+                          </span>
+                          <span
+                            className="badge font-mono"
+                            style={{
+                              fontSize: '0.7rem',
+                              background: 'rgba(163, 230, 53, 0.15)',
+                              border: `1px solid ${STRONG_EDGE.stroke}`,
+                              color: STRONG_EDGE.stroke,
+                            }}
+                          >
+                            Weight: {edge.weight.toFixed(2)}
+                          </span>
+                        </div>
+
+                        {/* Multi-Dimensional Correlation Scores */}
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(4, 1fr)',
+                            gap: '4px',
+                            fontSize: '0.65rem',
+                            color: 'var(--text-muted)',
+                            background: 'rgba(0,0,0,0.2)',
+                            padding: '4px 6px',
+                            borderRadius: 'var(--radius-xs)',
+                          }}
+                        >
+                          <span>Temporal: {(edge.temporal ?? 0).toFixed(2)}</span>
+                          <span>Service: {(edge.service ?? 0).toFixed(2)}</span>
+                          <span>Topo: {(edge.topology ?? 0).toFixed(2)}</span>
+                          <span>Evidence: {(edge.evidence_similarity ?? 0).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
+
+            {/* Quick Node List */}
+            {filteredNodesList.length > 0 && (
+              <div>
+                <span style={{ fontSize: '0.74rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
+                  All Nodes in Cluster ({filteredNodesList.length})
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '120px', overflowY: 'auto' }}>
+                  {filteredNodesList.map((n) => (
+                    <button
+                      key={n.id}
+                      onClick={() => setSelectedNodeId(n.id)}
+                      style={{
+                        padding: '3px 7px',
+                        fontSize: '0.68rem',
+                        fontFamily: 'monospace',
+                        borderRadius: 'var(--radius-xs)',
+                        border: selectedNodeId === n.id ? `1px solid ${STRONG_EDGE.stroke}` : '1px solid var(--border-subtle)',
+                        background: selectedNodeId === n.id ? 'rgba(163, 230, 53, 0.2)' : 'rgba(15, 23, 42, 0.5)',
+                        color: selectedNodeId === n.id ? STRONG_EDGE.stroke : 'var(--text-secondary)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      #{n.shortIdx} {n.shortId}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-
-          {/* Bento Card 2: Selected Node Details & Action Hub */}
-          <div
-            className="glass-card"
-            style={{
-              padding: '20px 22px',
-              borderRadius: 'var(--radius-xl)',
-              background: '#FAF8F0',
-              border: '1px solid var(--border-subtle)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '14px',
-            }}
-          >
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                paddingBottom: '10px',
-                borderBottom: '1px solid var(--border-subtle)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: 'var(--radius-md)',
-                    background: '#3D4654',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#D6A62C',
-                  }}
-                >
-                  <Database size={15} />
-                </div>
-                <span style={{ fontSize: '0.94rem', fontWeight: 700, color: '#252525' }}>
-                  Selected Node Details
-                </span>
-              </div>
-              <span
-                style={{
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  padding: '2px 8px',
-                  borderRadius: 'var(--radius-full)',
-                  background: activeNode.badgeBg || '#D6A62C',
-                  color: activeNode.badgeColor || '#FFFFFF',
-                }}
-              >
-                {activeNode.role || 'NODE'}
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {/* Node Identifier Box */}
-              <div
-                style={{
-                  padding: '12px 14px',
-                  borderRadius: 'var(--radius-lg)',
-                  background: '#F4F1E8',
-                  border: '1px solid var(--border-subtle)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '3px',
-                }}
-              >
-                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#807663', textTransform: 'uppercase' }}>
-                  Signal Identifier
-                </span>
-                <span style={{ fontSize: '0.94rem', fontWeight: 700, color: '#252525' }}>
-                  {activeNode.id} ({activeNode.role || 'Correlated Node'})
-                </span>
-                <span style={{ fontSize: '0.74rem', color: '#565F6E' }}>
-                  {activeNode.service}:{activeNode.component || 'core'}
-                </span>
-              </div>
-
-              {/* Attributes List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.74rem' }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    borderRadius: 'var(--radius-md)',
-                    background: '#F4F1E8',
-                    border: '1px solid var(--border-subtle)',
-                  }}
-                >
-                  <span style={{ color: '#565F6E' }}>First Detected:</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#252525' }}>
-                    {activeNode.timestamp
-                      ? new Date(activeNode.timestamp).toLocaleTimeString() + ' UTC'
-                      : '14:22:04.112 UTC'}
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    borderRadius: 'var(--radius-md)',
-                    background: '#F4F1E8',
-                    border: '1px solid var(--border-subtle)',
-                  }}
-                >
-                  <span style={{ color: '#565F6E' }}>Signal Vector:</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#252525' }}>
-                    {activeNode.anomaly_type || 'ResourceStarvation::PoolExhaustion'}
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    borderRadius: 'var(--radius-md)',
-                    background: '#F4F1E8',
-                    border: '1px solid var(--border-subtle)',
-                  }}
-                >
-                  <span style={{ color: '#565F6E' }}>Telemetry Source:</span>
-                  <span style={{ color: '#252525', fontWeight: 500 }}>
-                    {activeNode.source || 'Datadog / Prometheus Redis Exporter'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Diagnostic Synthesis */}
-              <div
-                style={{
-                  padding: '12px 14px',
-                  borderRadius: 'var(--radius-lg)',
-                  background: '#F4F1E8',
-                  border: '1px solid var(--border-subtle)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px',
-                }}
-              >
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#3D4654' }}>
-                  Diagnostic Synthesis
-                </span>
-                <p style={{ fontSize: '0.76rem', color: '#252525', lineHeight: 1.45 }}>
-                  {activeNode.message ||
-                    activeNode.notes ||
-                    'Correlated causal anomaly identified in evidence graph topological analysis.'}
-                </p>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '4px' }}>
-              <button
-                className="btn btn-primary"
-                onClick={() => onNavigate && onNavigate('review')}
-                style={{
-                  width: '100%',
-                  padding: '10px 16px',
-                  borderRadius: 'var(--radius-lg)',
-                  fontSize: '0.84rem',
-                  background: '#D6A62C',
-                  color: '#FFFFFF',
-                }}
-              >
-                <span>Proceed to Ticket Draft Review</span>
-                <ArrowRight size={15} />
-              </button>
-
-              <button
-                className="btn btn-secondary"
-                onClick={handleExportTopology}
-                style={{
-                  width: '100%',
-                  padding: '9px 16px',
-                  borderRadius: 'var(--radius-lg)',
-                  fontSize: '0.82rem',
-                  background: '#FAF8F0',
-                  borderColor: 'rgba(61, 70, 84, 0.25)',
-                  color: '#252525',
-                }}
-              >
-                <Download size={14} color="#565F6E" />
-                <span>Export Topology JSON</span>
-              </button>
-            </div>
+        ) : (
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textAlign: 'center', padding: '30px 0' }}>
+            Click on any node in the graph or select from the list above to inspect its multi-dimensional correlation edge weights.
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

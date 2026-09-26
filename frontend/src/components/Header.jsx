@@ -64,7 +64,6 @@ export default function Header({
         </div>
       </div>
 
-      {/* Center Status Indicators */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         {/* API Status */}
         <div
@@ -84,12 +83,12 @@ export default function Header({
               width: '8px',
               height: '8px',
               borderRadius: '50%',
-              background: '#D6A62C',
+              background: health?.status === 'ok' ? '#10B981' : '#D6A62C',
               display: 'inline-block',
             }}
           />
           <span style={{ color: '#565F6E' }}>
-            API: <strong style={{ color: '#252525' }}>Active (24ms)</strong>
+            API: <strong style={{ color: '#252525' }}>{health?.status === 'ok' ? 'Active' : 'Standby'}</strong>
           </span>
         </div>
 
