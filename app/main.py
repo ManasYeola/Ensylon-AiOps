@@ -458,7 +458,7 @@ def publish_jira(incident_id: str) -> dict:
     if not draft:
         raise HTTPException(status_code=404, detail="No draft — POST /draft first")
     try:
-        ticket = publish_to_jira(draft)
+        ticket = publish_to_jira(draft, incident_id=incident_id)
         return ticket
     except JiraError as e:
         raise HTTPException(status_code=403, detail=str(e))
