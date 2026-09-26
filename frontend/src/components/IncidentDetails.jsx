@@ -99,56 +99,16 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
     (incident.signal_ids || []).includes(s.id)
   );
 
-  const fallbackSignals = [
-    {
-      id: 'SIG-8902',
-      timestamp: '14:22:04 UTC',
-      service: 'comms-service:redis',
-      type: 'POOL_EXHAUSTION',
-      details: 'Max connections (500/500) reached on pool-notification-cache',
-    },
-    {
-      id: 'SIG-8905',
-      timestamp: '14:22:18 UTC',
-      service: 'comms-service:http',
-      type: 'LATENCY_P99',
-      details: 'p99 response time degraded from 45ms to 3,420ms',
-    },
-    {
-      id: 'SIG-8908',
-      timestamp: '14:22:31 UTC',
-      service: 'queue-worker:bullmq',
-      type: 'JOB_TIMEOUT',
-      details: '480 outbound webhook dispatch jobs stalled > 60s',
-    },
-    {
-      id: 'SIG-8911',
-      timestamp: '14:23:02 UTC',
-      service: 'comms-service:api',
-      type: 'HTTP_503',
-      details: '503 Service Unavailable returned on POST /v1/messages',
-    },
-    {
-      id: 'SIG-8914',
-      timestamp: '14:23:45 UTC',
-      service: 'ingress-gateway',
-      type: 'CIRCUIT_BREAKER',
-      details: 'Circuit breaker OPEN for route /notify to prevent cascading crash',
-    },
-  ];
+  const displaySignals = correlatedSignals.map((s, idx) => ({
+    id: s.id || `SIG-${idx + 1}`,
+    timestamp: s.timestamp ? new Date(s.timestamp).toLocaleTimeString() + ' UTC' : 'N/A',
+    service: s.service ? `${s.service}:${s.component || 'core'}` : 'unknown-service',
+    type: s.anomaly_type || 'ANOMALY',
+    details: s.message || s.summary || 'Elevated anomaly metric over sliding baseline',
+  }));
 
-  const displaySignals = correlatedSignals.length > 0
-    ? correlatedSignals.map((s, idx) => ({
-        id: s.id || `SIG-${8900 + idx * 3}`,
-        timestamp: s.timestamp ? new Date(s.timestamp).toLocaleTimeString() + ' UTC' : `14:22:${(idx * 14).toString().padStart(2, '0')} UTC`,
-        service: s.service ? `${s.service}:${s.component || 'core'}` : 'comms-service:redis',
-        type: s.anomaly_type || (idx === 0 ? 'POOL_EXHAUSTION' : idx === 1 ? 'LATENCY_P99' : 'HTTP_503'),
-        details: s.message || s.summary || 'Elevated anomaly metric over sliding baseline',
-      }))
-    : fallbackSignals;
-
-  const severityScore = (incident.severity || 52.8).toFixed(1);
-  const confidenceScore = incident.confidence ? Math.round(incident.confidence * 100) : 98;
+  const severityScore = (incident.severity || 0).toFixed(1);
+  const confidenceScore = incident.confidence ? Math.round(incident.confidence * 100) : 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -229,18 +189,25 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
                 style={{
                   padding: '4px 12px',
                   borderRadius: 'var(--radius-full)',
-                  background: '#FFFFFF',
-                  border: '1px solid rgba(186, 26, 26, 0.25)',
+                  background: (incident.severity || 0) > 70 ? 'rgba(186, 26, 26, 0.08)' : (incident.severity || 0) >= 50 ? 'rgba(214, 166, 44, 0.12)' : 'rgba(61, 70, 84, 0.08)',
+                  border: (incident.severity || 0) > 70 ? '1px solid rgba(186, 26, 26, 0.3)' : (incident.severity || 0) >= 50 ? '1px solid rgba(214, 166, 44, 0.3)' : '1px solid rgba(61, 70, 84, 0.2)',
                   fontSize: '0.74rem',
                   fontWeight: 700,
-                  color: '#BA1A1A',
+                  color: (incident.severity || 0) > 70 ? '#BA1A1A' : (incident.severity || 0) >= 50 ? '#785A00' : '#3D4654',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
                 }}
               >
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#BA1A1A' }} />
-                SEV: HIGH {severityScore}
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    background: (incident.severity || 0) > 70 ? '#BA1A1A' : (incident.severity || 0) >= 50 ? '#D6A62C' : '#3D4654',
+                  }}
+                />
+                SEV: {(incident.severity || 0) > 70 ? 'CRITICAL' : (incident.severity || 0) >= 50 ? 'HIGH' : 'MEDIUM'} {severityScore}
               </span>
 
               <span
@@ -703,7 +670,14 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
               </tr>
             </thead>
             <tbody>
-              {displaySignals.map((sig, idx) => (
+              {displaySignals.length === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: '#565F6E' }}>
+                    No correlated signals for this incident.
+                  </td>
+                </tr>
+              ) : (
+                displaySignals.map((sig, idx) => (
                 <tr
                   key={sig.id + idx}
                   style={{
@@ -744,7 +718,7 @@ export default function IncidentDetails({ incident, allSignals = [], onNavigate 
                     {sig.details}
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
           </table>
         </div>

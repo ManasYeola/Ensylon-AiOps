@@ -47,48 +47,71 @@ export default function App() {
         api.getJiraTickets(),
       ]);
 
-      if (h.status === 'fulfilled') {
+      if (h.status === 'fulfilled' && h.value) {
         setHealth(h.value);
-      } else {
-        setHealth(null); // backend is offline
-      }
-
-      if (sList.status === 'fulfilled') setSignals(sList.value);
-      if (jList.status === 'fulfilled') setJiraTickets(jList.value);
-
-      if (incList.status === 'fulfilled') {
-        const loadedIncidents = incList.value || [];
-        setIncidents(loadedIncidents);
-
-        // Keep or select first incident
-        if (loadedIncidents.length > 0) {
-          setSelectedIncident((prev) => {
-            if (prev) {
-              const matched = loadedIncidents.find((i) => i.id === prev.id);
-              if (
-                matched &&
-                matched.id === prev.id &&
-                matched.signal_ids?.length === prev.signal_ids?.length &&
-                matched.severity === prev.severity
-              ) {
-                return prev;
-              }
-              return matched || loadedIncidents[0];
-            }
-            return loadedIncidents[0];
-          });
+        if (sList.status === 'fulfilled') {
+          setSignals(sList.value || []);
+        } else {
+          setSignals([]);
         }
+        if (jList.status === 'fulfilled') {
+          setJiraTickets(jList.value || []);
+        } else {
+          setJiraTickets([]);
+        }
+
+        if (incList.status === 'fulfilled') {
+          const loadedIncidents = incList.value || [];
+          setIncidents(loadedIncidents);
+
+          // Keep or select first incident
+          if (loadedIncidents.length > 0) {
+            setSelectedIncident((prev) => {
+              if (prev) {
+                const matched = loadedIncidents.find((i) => i.id === prev.id);
+                if (
+                  matched &&
+                  matched.id === prev.id &&
+                  matched.signal_ids?.length === prev.signal_ids?.length &&
+                  matched.severity === prev.severity
+                ) {
+                  return prev;
+                }
+                return matched || loadedIncidents[0];
+              }
+              return loadedIncidents[0];
+            });
+          } else {
+            setSelectedIncident(null);
+          }
+        } else {
+          setIncidents([]);
+          setSelectedIncident(null);
+        }
+      } else {
+        // Backend is offline / closed
+        setHealth(null);
+        setSignals([]);
+        setIncidents([]);
+        setSelectedIncident(null);
+        setJiraTickets([]);
+        setGraphData(null);
       }
     } catch (err) {
       console.error('Failed to load data:', err);
       setHealth(null);
+      setSignals([]);
+      setIncidents([]);
+      setSelectedIncident(null);
+      setJiraTickets([]);
+      setGraphData(null);
     }
   };
 
   useEffect(() => {
     loadData();
-    // Poll health periodically every 15s
-    const interval = setInterval(loadData, 15000);
+    // Poll health periodically every 3s
+    const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
   }, []);
 

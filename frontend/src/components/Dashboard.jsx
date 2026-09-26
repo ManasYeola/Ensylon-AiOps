@@ -48,8 +48,8 @@ export default function Dashboard({
 
   // Filtered incidents
   const filteredIncidents = incidents.filter((inc) => {
-    if (filter === 'critical') return (inc.severity || 0) >= 60;
-    if (filter === 'high') return (inc.severity || 0) < 60;
+    if (filter === 'critical') return (inc.severity || 0) > 70;
+    if (filter === 'high') return (inc.severity || 0) <= 70;
     if (filter === 'prod') return inc.environment === 'prod' || !inc.environment;
     return true; // 'all'
   });
@@ -64,46 +64,26 @@ export default function Dashboard({
     }, 600);
   };
 
-  // Mock noise stream fallbacks if live signals are small
-  const defaultSuppressedItems = [
-    {
-      id: 'SIG-9941',
-      title: 'Transient 504 on auth-gateway',
-      metric: '42ms',
-      badge: 'Isolated Spike',
-      time: '3m ago',
-    },
-    {
-      id: 'SIG-9938',
-      title: 'CPU flutter worker-node-04',
-      metric: 'spike 89% for 3s',
-      badge: 'Sub-threshold',
-      time: '8m ago',
-    },
-    {
-      id: 'SIG-9920',
-      title: 'DNS lookup retry in eu-central-1',
-      metric: 'auto-resolved',
-      badge: 'Transient Jitter',
-      time: '19m ago',
-    },
-  ];
-
   const noiseItems =
     rejectedSignals.length > 0
       ? rejectedSignals.slice(0, 6).map((s, idx) => ({
-          id: s.id || `SIG-${9900 + idx}`,
+          id: s.id || `SIG-${idx + 1}`,
           title: s.message || s.summary || `${s.service || 'service'}: transient anomaly`,
           metric: s.metric_value ? `${s.metric_value} delta` : 'sub-threshold',
           badge: idx % 3 === 0 ? 'Isolated Spike' : idx % 3 === 1 ? 'Sub-threshold' : 'Transient Jitter',
           time: `${(idx + 1) * 4}m ago`,
         }))
-      : defaultSuppressedItems;
+      : [];
 
-  const outlierCount = rejectedSignals.length > 0 ? rejectedSignals.length : 496;
+  const outlierCount = rejectedSignals.length;
 
-  const critCount = incidents.filter((i) => (i.severity || 0) >= 60).length;
-  const highCount = incidents.filter((i) => (i.severity || 0) < 60).length;
+  const noiseRate =
+    allSignals.length > 0 && incidents.length > 0
+      ? Math.max(0, Math.min(99.9, ((1 - incidents.length / allSignals.length) * 100))).toFixed(1)
+      : '0.0';
+
+  const critCount = incidents.filter((i) => (i.severity || 0) > 70).length;
+  const highCount = incidents.filter((i) => (i.severity || 0) <= 70).length;
   const prodCount = incidents.filter((i) => i.environment === 'prod' || !i.environment).length;
 
   return (
@@ -122,8 +102,8 @@ export default function Dashboard({
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
           {[
             { id: 'all', label: `All Incidents (${incidents.length})`, hasPulse: true },
-            { id: 'critical', label: `Critical Severity (≥60) (${critCount})` },
-            { id: 'high', label: `High / Medium (<60) (${highCount})` },
+            { id: 'critical', label: `Critical Severity (>70) (${critCount})` },
+            { id: 'high', label: `High / Medium (≤70) (${highCount})` },
             { id: 'prod', label: `Production Only (${prodCount})` },
           ].map((btn) => {
             const isActive = filter === btn.id;
@@ -297,7 +277,7 @@ export default function Dashboard({
                     style={{
                       padding: '4px 12px',
                       borderRadius: 'var(--radius-full)',
-                      background: '#D6A62C',
+                      background: (heroIncident.severity || 0) > 70 ? '#BA1A1A' : (heroIncident.severity || 0) >= 50 ? '#D6A62C' : '#3D4654',
                       color: '#FFFFFF',
                       fontSize: '0.78rem',
                       fontWeight: 700,
@@ -308,8 +288,8 @@ export default function Dashboard({
                   >
                     <AlertTriangle size={14} color="#FFFFFF" />
                     <span>
-                      {(heroIncident.severity || 0) >= 60 ? 'CRITICAL' : 'HIGH'}{' '}
-                      {(heroIncident.severity || 52.8).toFixed(1)} / 100
+                      {(heroIncident.severity || 0) > 70 ? 'CRITICAL' : (heroIncident.severity || 0) >= 50 ? 'HIGH' : 'MEDIUM'}{' '}
+                      {(heroIncident.severity || 0).toFixed(1)} / 100
                     </span>
                   </div>
 
@@ -496,7 +476,7 @@ export default function Dashboard({
             </>
           ) : (
             <div style={{ padding: '30px', textAlign: 'center', color: '#565F6E' }}>
-              No incidents available. Click "Run Pipeline Demo" to simulate streaming anomalies.
+              No incidents available. Awaiting streaming telemetry anomalies.
             </div>
           )}
         </div>
@@ -591,7 +571,7 @@ export default function Dashboard({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               {filteredIncidents.map((inc) => {
                 const isSelected = (selectedIncident?.id || heroIncident?.id) === inc.id;
-                const isCrit = (inc.severity || 0) >= 60;
+                const isCrit = (inc.severity || 0) > 70;
                 const isHigh = (inc.severity || 0) >= 50 && !isCrit;
 
                 return (
@@ -685,7 +665,7 @@ export default function Dashboard({
                           color: '#FFFFFF',
                         }}
                       >
-                        {isCrit ? 'CRITICAL' : isHigh ? 'HIGH' : 'MEDIUM'} {(inc.severity || 50.0).toFixed(1)}
+                        {isCrit ? 'CRITICAL' : isHigh ? 'HIGH' : 'MEDIUM'} {(inc.severity || 0).toFixed(1)}
                       </span>
 
                       <span
@@ -821,7 +801,7 @@ export default function Dashboard({
                   fontWeight: 600,
                 }}
               >
-                96.7% Rate
+                {noiseRate}% Rate
               </span>
             </div>
 
@@ -882,7 +862,7 @@ export default function Dashboard({
                 fontWeight: 600,
               }}
             >
-              {jiraTicketsCount > 0 ? `${jiraTicketsCount} Published` : '0 Pending'}
+              {jiraTicketsCount || 0} Published · {Math.max(0, incidents.length - (jiraTicketsCount || 0))} Pending
             </span>
           </div>
         </div>
@@ -976,70 +956,76 @@ export default function Dashboard({
 
           {/* Outlier Stream Rows */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {noiseItems.map((item, idx) => (
-              <div
-                key={item.id + idx}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  borderRadius: 'var(--radius-md)',
-                  background: '#FFFFFF',
-                  border: '1px solid var(--border-subtle)',
-                  fontSize: '0.78rem',
-                  gap: '12px',
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                  <span
-                    className="font-mono"
-                    style={{
-                      fontSize: '0.74rem',
-                      fontWeight: 700,
-                      padding: '2px 10px',
-                      borderRadius: 'var(--radius-full)',
-                      background: '#3D4654',
-                      color: '#FFFFFF',
-                    }}
-                  >
-                    {item.id}
-                  </span>
-                  <span
-                    style={{
-                      color: '#252525',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {item.title}{' '}
-                    <span style={{ color: '#807663', fontFamily: 'var(--font-mono)' }}>
-                      ({item.metric})
-                    </span>
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-                  <span
-                    style={{
-                      fontSize: '0.7rem',
-                      padding: '2px 8px',
-                      borderRadius: 'var(--radius-full)',
-                      background: '#FAF8F0',
-                      color: '#565F6E',
-                      fontWeight: 500,
-                      border: '1px solid var(--border-subtle)',
-                    }}
-                  >
-                    {item.badge}
-                  </span>
-                  <span style={{ color: '#807663', fontSize: '0.72rem' }}>
-                    {item.time}
-                  </span>
-                </div>
+            {noiseItems.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: '#565F6E', fontSize: '0.85rem' }}>
+                No suppressed signals recorded.
               </div>
-            ))}
+            ) : (
+              noiseItems.map((item, idx) => (
+                <div
+                  key={item.id + idx}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: '#FFFFFF',
+                    border: '1px solid var(--border-subtle)',
+                    fontSize: '0.78rem',
+                    gap: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                    <span
+                      className="font-mono"
+                      style={{
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        padding: '2px 10px',
+                        borderRadius: 'var(--radius-full)',
+                        background: '#3D4654',
+                        color: '#FFFFFF',
+                      }}
+                    >
+                      {item.id}
+                    </span>
+                    <span
+                      style={{
+                        color: '#252525',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {item.title}{' '}
+                      <span style={{ color: '#807663', fontFamily: 'var(--font-mono)' }}>
+                        ({item.metric})
+                      </span>
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                    <span
+                      style={{
+                        fontSize: '0.7rem',
+                        padding: '2px 8px',
+                        borderRadius: 'var(--radius-full)',
+                        background: '#FAF8F0',
+                        color: '#565F6E',
+                        fontWeight: 500,
+                        border: '1px solid var(--border-subtle)',
+                      }}
+                    >
+                      {item.badge}
+                    </span>
+                    <span style={{ color: '#807663', fontSize: '0.72rem' }}>
+                      {item.time}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

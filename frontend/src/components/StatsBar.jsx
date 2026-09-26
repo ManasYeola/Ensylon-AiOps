@@ -17,14 +17,14 @@ export default function StatsBar({
   jiraTicketsCount = 0,
   outlierCount = 0,
 }) {
-  const incidentCount = incidents.length > 0 ? incidents.length : 21;
-  const activeIncidents = incidents.filter((i) => i.status !== 'resolved').length || incidentCount;
+  const incidentCount = incidents.length;
+  const activeIncidents = incidents.filter((i) => i.status !== 'resolved').length;
 
   // Noise reduction ratio calculation
   const noiseReductionRatio =
     signalsCount > 0 && incidentCount > 0
       ? Math.max(0, Math.min(99.9, ((1 - incidentCount / signalsCount) * 100))).toFixed(1)
-      : '96.7';
+      : '0.0';
 
   // Average confidence across incidents
   const avgConfidence =
@@ -32,10 +32,10 @@ export default function StatsBar({
       ? (
           (incidents.reduce((acc, inc) => acc + (inc.confidence || 0), 0) / incidentCount) * 100
         ).toFixed(1)
-      : '92.1';
+      : '0.0';
 
-  const displaySignals = signalsCount > 0 ? signalsCount.toLocaleString() : '1,822';
-  const displayFilteredNoise = outlierCount > 0 ? outlierCount.toLocaleString() : '1,321';
+  const displaySignals = (signalsCount || 0).toLocaleString();
+  const displayFilteredNoise = (outlierCount || 0).toLocaleString();
 
   return (
     <div
@@ -81,9 +81,9 @@ export default function StatsBar({
           <span style={{ fontSize: '1.45rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
             {displaySignals}
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#785A00', fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: signalsCount > 0 ? '#785A00' : '#807663', fontWeight: 600 }}>
             <TrendingUp size={12} />
-            <span>+12% baseline</span>
+            <span>{signalsCount > 0 ? '+12% baseline' : '0% baseline'}</span>
           </div>
         </div>
       </div>
@@ -129,12 +129,12 @@ export default function StatsBar({
                 fontSize: '0.66rem',
                 padding: '2px 8px',
                 borderRadius: 'var(--radius-full)',
-                background: '#D6A62C',
+                background: activeIncidents > 0 ? '#D6A62C' : '#807663',
                 color: '#FFFFFF',
                 fontWeight: 600,
               }}
             >
-              Active
+              {activeIncidents > 0 ? 'Active' : 'None'}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#565F6E' }}>
@@ -261,9 +261,9 @@ export default function StatsBar({
           <span style={{ fontSize: '1.45rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
             {avgConfidence}%
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#785A00', fontWeight: 600 }}>
-            <CheckCircle2 size={12} color="#785A00" />
-            <span>gate met</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: incidentCount > 0 ? '#785A00' : '#807663', fontWeight: 600 }}>
+            <CheckCircle2 size={12} color={incidentCount > 0 ? '#785A00' : '#807663'} />
+            <span>{incidentCount > 0 ? 'gate met' : 'no incidents'}</span>
           </div>
         </div>
       </div>
@@ -302,23 +302,23 @@ export default function StatsBar({
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
             <span style={{ fontSize: '1.45rem', fontWeight: 700, color: '#3D4654', letterSpacing: '-0.02em' }}>
-              {jiraTicketsCount}
+              {jiraTicketsCount || 0}
             </span>
             <span
               style={{
                 fontSize: '0.66rem',
                 padding: '2px 8px',
                 borderRadius: 'var(--radius-full)',
-                background: jiraTicketsCount > 0 ? '#3D4654' : '#EAE6DB',
+                background: jiraTicketsCount > 0 ? '#10B981' : '#EAE6DB',
                 color: jiraTicketsCount > 0 ? '#FFFFFF' : '#565F6E',
                 fontWeight: 600,
               }}
             >
-              {jiraTicketsCount > 0 ? 'Published' : 'Pending'}
+              Published
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', fontSize: '0.72rem', color: '#565F6E' }}>
-            <span>in SRE-INCIDENTS</span>
+            <span>{Math.max(0, incidentCount - (jiraTicketsCount || 0))} pending approval</span>
           </div>
         </div>
       </div>

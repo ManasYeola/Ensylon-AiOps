@@ -1,11 +1,8 @@
 import React from 'react';
-import { Play, RefreshCw, Zap, Server, Cpu, ShieldCheck, User } from 'lucide-react';
+import { RefreshCw, User } from 'lucide-react';
 
 export default function Header({
   health,
-  isRunningDemo,
-  onRunDemo,
-  onOpenWebhook,
   onRefresh,
 }) {
   return (
@@ -92,36 +89,6 @@ export default function Header({
           </span>
         </div>
 
-        {/* LLM Engine Badge */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '5px 12px',
-            background: '#FAF8F0',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border-subtle)',
-            fontSize: '0.78rem',
-          }}
-        >
-          <span style={{ color: '#565F6E' }}>
-            LLM Engine: <strong style={{ color: '#252525' }}>Claude 3.5 Sonnet</strong>
-          </span>
-          <span
-            style={{
-              padding: '2px 6px',
-              background: 'rgba(61, 70, 84, 0.1)',
-              color: '#3D4654',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '0.68rem',
-              fontWeight: 600,
-            }}
-          >
-            Ready
-          </span>
-        </div>
-
         {/* Refresh Icon */}
         <button
           onClick={onRefresh}
@@ -138,46 +105,6 @@ export default function Header({
           }}
         >
           <RefreshCw size={16} />
-        </button>
-      </div>
-
-      {/* Action Buttons */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <button
-          className="btn btn-secondary"
-          onClick={onOpenWebhook}
-          style={{
-            padding: '7px 16px',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '0.82rem',
-            borderColor: 'rgba(61, 70, 84, 0.35)',
-            color: '#3D4654',
-          }}
-        >
-          <span>Test Webhook</span>
-        </button>
-
-        <button
-          className="btn btn-primary"
-          onClick={onRunDemo}
-          disabled={isRunningDemo}
-          title="Run Pipeline Demo"
-          style={{
-            padding: '7px 18px',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '0.82rem',
-            background: '#D6A62C',
-            color: '#FFFFFF',
-          }}
-        >
-          {isRunningDemo ? (
-            <>
-              <RefreshCw size={15} className="animate-spin" />
-              <span>Correlating Signals...</span>
-            </>
-          ) : (
-            <span>Run Pipeline Demo</span>
-          )}
         </button>
 
         {/* User Icon */}
