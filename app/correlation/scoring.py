@@ -33,10 +33,17 @@ def calculate_temporal_score(a: Signal, b: Signal, window_seconds: int | None = 
 def calculate_service_score(a: Signal, b: Signal) -> float:
     """
     S — service relationship score.
-    1.0 = same service, 0.0 = no relationship.
+    1.0 = same service.
+    0.5 = directly topology-adjacent services (1-hop dependency).
+         These are the most likely cascade sources (PRD §9 scenario).
+    0.0 = no service relationship.
     """
     if a.service == b.service:
         return 1.0
+    # Give partial credit to direct 1-hop topology neighbours
+    hops = get_hop_distance(a.service, b.service)
+    if hops == 1:
+        return 0.5
     return 0.0
 
 
@@ -55,17 +62,19 @@ def calculate_component_score(a: Signal, b: Signal) -> float:
 def calculate_topology_score(a: Signal, b: Signal) -> float:
     """
     D — topology/dependency score.
-    Decays linearly with hop distance; 0 hops = 1.0, 3 hops = 0.25, beyond = 0.0.
+    Decays with hop distance; 0 hops = 1.0, 1 hop = 0.90, 2 hops = 0.60,
+    3 hops = 0.30, beyond = 0.0.
+    (PRD §13: adjacent services in the dependency graph are strong candidates.)
     """
     if a.service == b.service:
         return 1.0
     hops = get_hop_distance(a.service, b.service)
     if hops == 1:
-        return 0.85
+        return 0.90
     if hops == 2:
-        return 0.55
+        return 0.60
     if hops == 3:
-        return 0.25
+        return 0.30
     return 0.0
 
 

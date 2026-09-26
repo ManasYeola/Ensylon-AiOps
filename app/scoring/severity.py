@@ -28,11 +28,12 @@ def get_service_criticality(service: str) -> float:
 def calculate_blast_radius(signals: list[Signal]) -> float:
     """
     Blast radius score (0–100): how many distinct services are impacted.
-    1 service = 25, 2 = 50, 3 = 75, 4+ = 100.
+    1 service = 25, 2 = 50, 3 = 75, 4 = 88, 5+ = 100.
     Normalized to 0–100 scale.
     """
     n = len({s.service for s in signals})
-    return min(n * 25.0, 100.0)
+    mapping = {1: 25.0, 2: 50.0, 3: 75.0, 4: 88.0}
+    return mapping.get(n, 100.0)
 
 
 def calculate_criticality(signals: list[Signal]) -> float:
@@ -72,14 +73,25 @@ def calculate_trend(signals: list[Signal]) -> float:
 
 def calculate_magnitude(signals: list[Signal]) -> float:
     """
-    Magnitude score (0–100): highest observed metric value relative to normal expectation.
-    If no numeric values are present, falls back to 50.
+    Magnitude score (0–100): highest observed anomaly severity relative to
+    its expected normal range.
+
+    Normalization:
+    - Values in [0, 100] range (CPU %, pool %, error rate): used directly.
+    - Values > 100 (latency in ms, counts): normalized relative to a
+      1000-unit baseline, capped at 100.
+    - No numeric values present → neutral 50.
     """
     values = [s.value for s in signals if s.value is not None]
     if not values:
         return 50.0
-    # Normalise: assume values > 90 are critical on a 0–100 scale
-    return min(max(values) / 100.0 * 100.0, 100.0)
+
+    max_val = max(values)
+    # If the max value is on a 0–100 scale, treat it directly
+    if max_val <= 100:
+        return round(min(max_val, 100.0), 2)
+    # Otherwise normalize using a 1000-unit reference (e.g. 850ms → 85/100)
+    return round(min(max_val / 10.0, 100.0), 2)
 
 
 def calculate_severity(signals: list[Signal]) -> float:

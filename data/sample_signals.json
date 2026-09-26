@@ -1,13 +1,15 @@
 [
   {
     "id": "S1",
-    "timestamp": "2026-09-12T10:01:00",
+    "timestamp": "2026-09-12T10:01:15",
     "source": "cloudwatch",
     "environment": "prod",
     "service": "database",
     "component": "connection_pool",
-    "type": "metric_anomaly",
-    "value": 98
+    "type": "log_anomaly",
+    "template_id": "T002",
+    "value": 78,
+    "message": "DB connection pool exhausted. Pool size: 100, active: 99. User neha.joshi@acmecorp.com ip:10.0.2.83 sess_kd3dxt acc:ACC-10000055"
   },
   {
     "id": "S2",
@@ -17,7 +19,7 @@
     "service": "payment",
     "component": "api",
     "type": "log_anomaly",
-    "template_id": "T001",
+    "template_id": "T002",
     "message": "Database connection timeout"
   },
   {
@@ -28,7 +30,7 @@
     "service": "payment",
     "component": "api",
     "type": "log_anomaly",
-    "template_id": "T001",
+    "template_id": "T002",
     "message": "Database connection timeout"
   },
   {
@@ -39,7 +41,7 @@
     "service": "payment",
     "component": "api",
     "type": "log_anomaly",
-    "template_id": "T001",
+    "template_id": "T002",
     "message": "Database connection timeout"
   },
   {
@@ -50,7 +52,7 @@
     "service": "payment",
     "component": "api",
     "type": "log_anomaly",
-    "template_id": "T001",
+    "template_id": "T002",
     "message": "Database connection timeout"
   },
   {
@@ -61,7 +63,7 @@
     "service": "payment",
     "component": "api",
     "type": "log_anomaly",
-    "template_id": "T001",
+    "template_id": "T002",
     "message": "Database connection timeout"
   },
   {
@@ -72,7 +74,7 @@
     "service": "payment",
     "component": "api",
     "type": "log_anomaly",
-    "template_id": "T001",
+    "template_id": "T002",
     "message": "Database connection timeout"
   },
   {
@@ -83,7 +85,7 @@
     "service": "payment",
     "component": "api",
     "type": "log_anomaly",
-    "template_id": "T001",
+    "template_id": "T002",
     "message": "Database connection timeout"
   },
   {
@@ -94,7 +96,7 @@
     "service": "payment",
     "component": "api",
     "type": "log_anomaly",
-    "template_id": "T001",
+    "template_id": "T002",
     "message": "Database connection timeout"
   },
   {
@@ -105,7 +107,7 @@
     "service": "payment",
     "component": "api",
     "type": "log_anomaly",
-    "template_id": "T001",
+    "template_id": "T002",
     "message": "Database connection timeout"
   },
   {
@@ -116,7 +118,7 @@
     "service": "payment",
     "component": "api",
     "type": "log_anomaly",
-    "template_id": "T001",
+    "template_id": "T002",
     "message": "Database connection timeout"
   },
   {
@@ -127,7 +129,7 @@
     "service": "payment",
     "component": "api",
     "type": "log_anomaly",
-    "template_id": "T001",
+    "template_id": "T002",
     "message": "Database connection timeout"
   },
   {
@@ -138,7 +140,7 @@
     "service": "payment",
     "component": "api",
     "type": "log_anomaly",
-    "template_id": "T001",
+    "template_id": "T002",
     "message": "Database connection timeout"
   },
   {
@@ -148,8 +150,10 @@
     "environment": "prod",
     "service": "checkout",
     "component": "api",
-    "type": "latency_alert",
-    "value": 850
+    "type": "log_anomaly",
+    "template_id": "T002",
+    "value": 850,
+    "message": "Checkout latency 850ms \u00e2\u20ac\u201d database connection pool exhausted upstream. Trace: sess_xyz99887"
   },
   {
     "id": "S15",
@@ -158,8 +162,9 @@
     "environment": "prod",
     "service": "order",
     "component": "api",
-    "type": "timeout_anomaly",
-    "message": "Payment request timeout"
+    "type": "log_anomaly",
+    "template_id": "T002",
+    "message": "Database connection timeout from order service. Session sess_abc12345 ACC-20001234"
   },
   {
     "id": "S16",
@@ -168,8 +173,9 @@
     "environment": "prod",
     "service": "order",
     "component": "api",
-    "type": "timeout_anomaly",
-    "message": "Payment request timeout"
+    "type": "log_anomaly",
+    "template_id": "T002",
+    "message": "Database connection timeout from order service. User: raj.kumar@nexuscorp.com ip:192.168.10.5"
   },
   {
     "id": "S17",
@@ -178,8 +184,9 @@
     "environment": "prod",
     "service": "order",
     "component": "api",
-    "type": "timeout_anomaly",
-    "message": "Payment request timeout"
+    "type": "log_anomaly",
+    "template_id": "T002",
+    "message": "Database connection timeout from order service. ACC-20001235"
   },
   {
     "id": "S18",

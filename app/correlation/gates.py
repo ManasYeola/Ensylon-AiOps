@@ -180,18 +180,6 @@ def validate_bridge(
             component_a = visited
             component_b = rest - visited
 
-            score_to_a = max(
-                (graph.get_edge(candidate, n) or graph.get_edge(n, candidate))
-                for n in component_a
-                if graph.get_edge(candidate, n) or graph.get_edge(n, candidate)
-            )
-            score_to_b = max(
-                (graph.get_edge(candidate, n) or graph.get_edge(n, candidate))
-                for n in component_b
-                if graph.get_edge(candidate, n) or graph.get_edge(n, candidate)
-            )
-
-            # Get actual scores
             def best_score_to(node: str, group: set) -> float:
                 best = 0.0
                 for n in group:

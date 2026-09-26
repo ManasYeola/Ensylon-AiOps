@@ -19,8 +19,9 @@ severity:
     checkout: 95
     payment: 92
     order: 88
-    database: 90
+    database: 70
     internal_admin: 20
+    recommendation: 15
     unknown: 50
 
 confidence:

@@ -1,5 +1,5 @@
 {
-  "database": ["payment"],
+  "database": ["payment", "checkout", "order"],
   "payment": ["checkout", "order"],
   "checkout": ["order"],
   "order": []
