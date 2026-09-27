@@ -215,6 +215,19 @@ def _detect_and_score(signal: Signal) -> Signal:
             timestamp=signal.timestamp,
         )
 
+        # Background traffic in the simulator consists of routine INFO and WARN logs (HTML §5).
+        # Any ERROR, CRITICAL, or FATAL log represents an active failure signal and must not be
+        # suppressed as 0.0 simply because it is the 1st or 2nd occurrence of that template.
+        # Apply a floor of 0.65 (analogous to the CloudWatch ALARM 0.55 floor), scaling up to 1.0 on bursts.
+        level = str((signal.metadata or {}).get("level") or (signal.metadata or {}).get("log_level") or "").upper()
+        if not level and signal.evidence:
+            first_word = signal.evidence.split()[0].upper()
+            if first_word in ("ERROR", "CRITICAL", "FATAL"):
+                level = first_word
+
+        if level in ("ERROR", "CRITICAL", "FATAL"):
+            score = max(score, 0.65)
+
         evidence = signal.evidence or f"[REDACTED] {template_text}"
         chosen_tid = signal.template_id or tid
         return signal.model_copy(update={
@@ -342,16 +355,42 @@ def _run_pipeline(signals: list[Signal]) -> list[dict]:
         fp    = generate_fingerprint(cluster_signals, sev, conf)
         fp_id = fingerprint_hash(fp)
 
-        # Check exact hash first
+        # Check exact hash first (same services + components + templates → definitely same incident)
         matched_incident_id = _fp_to_incident.get(fp_id)
 
-        # If not an exact hash match, check structural similarity against active fingerprints (PRD §8 / §19)
+        # Structural similarity check — only against RECENT incidents within continuation window
+        # and only when the new cluster shares at least one signal ID with the existing one.
+        # Without these guards, incidents sharing the same environment + any 2 services
+        # would score ≥0.77 (env=0.10 + services=0.67) and get incorrectly merged forever.
         if not matched_incident_id and _fingerprints:
             fp_cfg = get_fingerprint_cfg()
-            sim_threshold = fp_cfg.get("similarity_threshold", 0.70)
+            sim_threshold = fp_cfg.get("similarity_threshold", 0.85)  # raised from 0.70
+            continuation_secs = fp_cfg.get("continuation_window_minutes", 60) * 60
+            now_ts = time.time()
+
+            new_signal_set = set(cluster_ids)
             best_score = 0.0
             best_fp_id = None
+
             for existing_fp_id, existing_fp in _fingerprints.items():
+                existing_inc_id = _fp_to_incident.get(existing_fp_id)
+                if not existing_inc_id or existing_inc_id not in _incidents:
+                    continue
+
+                existing_inc = _incidents[existing_inc_id]
+
+                # Time gate: only merge into incidents created within the continuation window
+                age_secs = (now_ts - existing_inc.created_at.timestamp())
+                if age_secs > continuation_secs:
+                    continue
+
+                # Signal overlap gate: at least 1 shared signal ID is required.
+                # This ensures we only merge signals that are genuinely part of the same event,
+                # not just incidents that happen to involve similar services at different times.
+                existing_signal_set = set(existing_inc.signal_ids)
+                if not new_signal_set & existing_signal_set:
+                    continue
+
                 score = similarity_score(fp, existing_fp)
                 if score > best_score:
                     best_score = score

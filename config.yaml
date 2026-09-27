@@ -38,8 +38,8 @@ detection:
 validation:
   coherence_avg_threshold: 0.60
   coherence_strong_ratio: 0.50
-  bridge_strong_threshold: 0.70
+  bridge_strong_threshold: 0.85
 
 fingerprint:
   continuation_window_minutes: 60
-  similarity_threshold: 0.70
+  similarity_threshold: 0.85
