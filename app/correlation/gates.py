@@ -165,7 +165,7 @@ def validate_bridge(
             continue
 
         # BFS on strong edges among 'rest'
-        start = next(iter(rest))
+        start = min(rest)
         visited = {start}
         queue = [start]
         while queue:

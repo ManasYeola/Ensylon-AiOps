@@ -27,7 +27,7 @@ class EvidenceGraph:
         """
         cfg = get_correlation_cfg()
         window_sec = cfg["window_minutes"] * 60
-        signal_list = list(self.signals.values())
+        signal_list = sorted(self.signals.values(), key=lambda s: s.id)
 
         for i in range(len(signal_list)):
             for j in range(i + 1, len(signal_list)):

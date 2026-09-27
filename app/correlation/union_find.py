@@ -46,7 +46,7 @@ def build_candidate_clusters(
     cfg = get_correlation_cfg()
     t = threshold or cfg["strong_edge_threshold"]
 
-    signal_ids = list(graph.signals.keys())
+    signal_ids = sorted(graph.signals.keys())
     uf = UnionFind(signal_ids)
 
     for edge in graph.get_strong_edges(t):
